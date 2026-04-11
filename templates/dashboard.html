@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MemeTrader - Paper Trading Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); }
+        .card { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .glow { box-shadow: 0 0 30px rgba(99,102,241,0.3); }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen text-white">
+    <!-- Header -->
+    <header class="border-b border-white/10">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="text-3xl">🪙</div>
+                <div>
+                    <h1 class="text-2xl font-bold">MemeTrader</h1>
+                    <p class="text-xs text-gray-400">Paper Money Trading</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">● Live</span>
+                <button onclick="refreshAll()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm">↻ Refresh</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Stats Row -->
+        <div class="grid grid-cols-4 gap-6 mb-8">
+            <div class="card rounded-xl p-6">
+                <p class="text-gray-400 text-sm">Portfolio Value</p>
+                <p class="text-3xl font-bold mt-2" id="portfolio-value">$0</p>
+            </div>
+            <div class="card rounded-xl p-6">
+                <p class="text-gray-400 text-sm">Total P&L</p>
+                <p class="text-3xl font-bold mt-2" id="total-pnl">$0</p>
+            </div>
+            <div class="card rounded-xl p-6">
+                <p class="text-gray-400 text-sm">Return %</p>
+                <p class="text-3xl font-bold mt-2" id="return-pct">0%</p>
+            </div>
+            <div class="card rounded-xl p-6">
+                <p class="text-gray-400 text-sm">Total Trades</p>
+                <p class="text-3xl font-bold mt-2" id="total-trades">0</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-6">
+            <!-- Left: Portfolio -->
+            <div class="card rounded-xl p-6 col-span-2">
+                <h2 class="text-xl font-bold mb-4">💼 Your Portfolio</h2>
+                <div id="portfolio-table">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="text-gray-400 text-sm">
+                                <th class="text-left py-2">Chain</th>
+                                <th class="text-left py-2">Token</th>
+                                <th class="text-right py-2">Balance</th>
+                                <th class="text-right py-2">Value (USD)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="portfolio-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Right: Trade Form -->
+            <div class="card rounded-xl p-6">
+                <h2 class="text-xl font-bold mb-4">📈 Execute Trade</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-gray-400 text-sm">Chain</label>
+                        <select id="trade-chain" class="w-full mt-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2">
+                            <option value="ethereum">Ethereum</option>
+                            <option value="solana">Solana</option>
+                            <option value="base">Base</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-gray-400 text-sm">From Token</label>
+                        <input id="trade-from" type="text" placeholder="USDC" class="w-full mt-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="text-gray-400 text-sm">To Token</label>
+                        <input id="trade-to" type="text" placeholder="PEPE" class="w-full mt-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="text-gray-400 text-sm">Amount</label>
+                        <input id="trade-amount" type="number" placeholder="100" class="w-full mt-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2">
+                    </div>
+                    <button onclick="executeSwap()" class="w-full py-3 bg-green-600 hover:bg-green-700 rounded-lg font-bold">SWAP</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trending Tokens -->
+        <div class="card rounded-xl p-6 mt-6">
+            <h2 class="text-xl font-bold mb-4">🔥 Trending Meme Tokens</h2>
+            <div id="trending-grid" class="grid grid-cols-5 gap-4"></div>
+        </div>
+
+        <!-- AI Chat Panel -->
+        <div class="card rounded-xl p-6 mt-6">
+            <h2 class="text-xl font-bold mb-4">🤖 MemeTrader AI Agent</h2>
+            <div id="chat-body" class="h-64 overflow-y-auto bg-black/20 rounded-lg p-4 mb-4 font-mono text-sm">
+                <div class="text-gray-400">Ask me about trading, tokens, or anything!</div>
+            </div>
+            <div class="flex gap-2">
+                <input id="chat-input" type="text" placeholder="Ask anything..." 
+                    class="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2">
+                <button onclick="sendChat()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg">Send</button>
+            </div>
+        </div>
+
+        <!-- Trade History -->
+        <div class="card rounded-xl p-6 mt-6">
+            <h2 class="text-xl font-bold mb-4">📜 Trade History</h2>
+            <div id="trade-history"></div>
+        </div>
+    </main>
+
+    <script>
+        const API = '/api';
+
+        async function refreshAll() {
+            await Promise.all([loadPortfolio(), loadTrending(), loadStats()]);
+        }
+
+        async function loadStats() {
+            try {
+                const res = await fetch(`${API}/stats`);
+                const data = await res.json();
+                document.getElementById('portfolio-value').textContent = `$${data.current_value?.toLocaleString() || 0}`;
+                document.getElementById('total-pnl').textContent = `$${data.total_pnl_usd?.toLocaleString() || 0}`;
+                document.getElementById('total-pnl').className = `text-3xl font-bold mt-2 ${data.total_pnl_usd >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                document.getElementById('return-pct').textContent = `${data.total_return_pct?.toFixed(2) || 0}%`;
+                document.getElementById('return-pct').className = `text-3xl font-bold mt-2 ${data.total_return_pct >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                document.getElementById('total-trades').textContent = data.total_trades || 0;
+            } catch(e) { console.error(e); }
+        }
+
+        async function loadPortfolio() {
+            try {
+                const res = await fetch(`${API}/portfolio`);
+                const data = await res.json();
+                const tbody = document.getElementById('portfolio-body');
+                tbody.innerHTML = '';
+                
+                const prices = data.prices || {};
+                for (const [chain, wallet] of Object.entries(data.wallets || {})) {
+                    for (const [token, balance] of Object.entries(wallet.current_balance || {})) {
+                        if (balance > 0) {
+                            const priceKey = `${chain}:${token}`.toUpperCase();
+                            const price = prices[priceKey] || 0;
+                            const value = balance * price;
+                            tbody.innerHTML += `
+                                <tr class="border-t border-white/10">
+                                    <td class="py-2 capitalize">${chain}</td>
+                                    <td class="py-2">${token}</td>
+                                    <td class="py-2 text-right">${balance.toFixed(4)}</td>
+                                    <td class="py-2 text-right">$${value.toFixed(2)}</td>
+                                </tr>
+                            `;
+                        }
+                    }
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        async function loadTrending() {
+            try {
+                const res = await fetch(`${API}/trending`);
+                const data = await res.json();
+                const grid = document.getElementById('trending-grid');
+                grid.innerHTML = '';
+                
+                (data.trending || []).slice(0,15).forEach(token => {
+                    grid.innerHTML += `
+                        <div class="bg-white/5 rounded-lg p-4 cursor-pointer hover:bg-white/10 transition" onclick="selectToken('${token.symbol}')">
+                            <div class="font-bold">${token.symbol?.toUpperCase()}</div>
+                            <div class="text-gray-400 text-sm">#${token.market_cap_rank}</div>
+                        </div>
+                    `;
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        function selectToken(symbol) {
+            document.getElementById('trade-to').value = symbol.toUpperCase();
+        }
+
+        async function executeSwap() {
+            const chain = document.getElementById('trade-chain').value;
+            const from = document.getElementById('trade-from').value.toUpperCase();
+            const to = document.getElementById('trade-to').value.toUpperCase();
+            const amount = document.getElementById('trade-amount').value;
+
+            if (!from || !to || !amount) {
+                alert('Please fill all fields');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/swap`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({chain, from_token: from, to_token: to, amount: parseFloat(amount)})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Trade executed!');
+                    refreshAll();
+                } else {
+                    alert('Trade failed: ' + data.error);
+                }
+            } catch(e) { alert('Error: ' + e.message); }
+        }
+
+        // Load on start
+        refreshAll();
+
+        // Chat with Hermes Agent
+        async function sendChat() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const chatBody = document.getElementById('chat-body');
+            chatBody.innerHTML += `<div class="mb-2"><span class="text-green-400">You:</span> ${message}</div>`;
+            chatBody.innerHTML += `<div class="mb-4 text-gray-400">🤖 Thinking...</div>`;
+            input.value = '';
+
+            try {
+                const res = await fetch(`${API}/chat`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message})
+                });
+                const data = await res.json();
+                
+                // Remove "Thinking" and add response
+                const msgs = chatBody.querySelectorAll('div');
+                msgs[msgs.length - 1].remove();
+                chatBody.innerHTML += `<div class="mb-4"><span class="text-indigo-400">Agent:</span> ${data.response || data.error}</div>`;
+                chatBody.scrollTop = chatBody.scrollHeight;
+            } catch(e) {
+                chatBody.innerHTML += `<div class="mb-4 text-red-400">Error: ${e.message}</div>`;
+            }
+        }
+
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendChat();
+        });
+    </script>
+</body>
+</html>
