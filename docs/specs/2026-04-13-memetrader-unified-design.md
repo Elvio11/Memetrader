@@ -2,7 +2,7 @@
 
 > **Status**: Design Document (Brainstorming Phase)
 > **Date**: 2026-04-13
-> **Version**: 1.0
+> **Version**: 2.0 (Comprehensive)
 
 ---
 
@@ -10,16 +10,22 @@
 
 This document outlines the comprehensive design for unifying Hermes Agent with NOFX trading backend into a single AI-powered trading platform. The system will use Hermes as the single AI brain for all trading decisions, with NOFX serving as the execution layer.
 
-### Key Decisions Made
+### Key Decisions Made (v2.0)
 
-| Decision | Description |
-|----------|-------------|
-| **Single AI Brain** | Hermes connects to NOFX via MCP - NOFX disables internal AI |
-| **UI Integration** | Add Hermes features to NOFX-UI (Chat, Memory, Skills, Inspector) |
-| **API Connection** | Use FastAPI on port 8643 (not Gateway) |
-| **Data Sources** | Add CoinGecko, DexScreener, Birdeye, Helius |
-| **DEX Support** | Prioritize Solana (Raydium, Jupiter), then EVM, then SUI |
-| **Paper Trading** | Delete Hermes paper_engine.py - use NOFX testnet instead |
+| Decision | Description | Status |
+|----------|-------------|--------|
+| **Single AI Brain** | Hermes connects to NOFX via MCP - NOFX disables internal AI | ✅ |
+| **UI Integration** | Add Hermes features to NOFX-UI (Chat, Memory, Skills, Inspector) | ✅ |
+| **API Connection** | Use FastAPI on port 8643 (not Gateway) | ✅ |
+| **Data Sources** | Add CoinGecko, DexScreener, Birdeye, Helius | ✅ |
+| **DEX Support** | Prioritize Solana (Raydium, Jupiter), then EVM, then SUI | ✅ |
+| **Paper Trading** | Delete Hermes paper_engine.py - use NOFX testnet instead | ✅ |
+| **Routing (R3)** | Auto-route based on trade type (perp→NOFX, DEX→Hermes) | ✅ |
+| **Strategy (S2)** | Hybrid - NOFX grid + Hermes for DEX/sentiment | ✅ |
+| **Wallet (Hermes)** | DEX wallet in Hermes (2-wallet pattern) | ✅ |
+| **Core Agent** | Hermes as core agent with multi-agent system | ✅ |
+| **Multi-Agent** | cronjob + delegate + background processes | ✅ |
+| **Learning** | Hermes memory + skills auto-improvement | ✅ |
 
 ---
 
@@ -794,5 +800,363 @@ Step 5: Production Ready
 
 ---
 
-*Document Version: 1.2*
+## Part 17: Hermes Core Agent Architecture
+
+### Overview: Hermes as the Single AI Brain
+
+Hermes becomes the **core agent** that orchestrates ALL trading decisions. It doesn't just handle chat - it's the brain that thinks, decides, learns, and evolves.
+
+### Hermes Capabilities
+
+| Capability | Description | Use Case |
+|-----------|------------|----------|
+| **60+ Tools** | File, terminal, web, trading, analysis | Execute all tasks |
+| **Memory System** | Persistent sessions + cross-session recall | Learn from trades |
+| **Skills System** | Auto-improving skills | Trading strategies |
+| **MCP Client** | Connect to external tools | Extend via MCP |
+| **Session DB** | SQLite with FTS5 search | Trade history |
+| **Context Compression** | Auto-summarize long convos | Deep analysis |
+| **Prompt Caching** | Anthropic caching support | Cost efficiency |
+| **Multi-Platform** | CLI, Telegram, Discord, Slack | Any interface |
+
+### Hermes Core Agent Flow
+
+```
+User Input (Chat/Telegram/Discord/CLI)
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│         HERMES CORE AGENT              │
+│  ┌─────────────────────────────┐  │
+│  │  System Prompt (Identity) │  │
+│  │  + Memory Context     │  │
+│  │  + Skills          │  │
+│  │  + Tools          │  │
+│  └─────────────────────────────┘  │
+│              │                      │
+│              ▼                      │
+│  ┌─────────────────────────────┐  │
+│  │   LLM Decision Engine   │  │
+│  │  (Anthropic/OpenAI)   │  │
+│  └─────────────────────────────┘  │
+│              │                      │
+│              ▼                      │
+│  ┌─────────────────────────────┐  │
+│  │   Tool Execution        │  │
+│  │  • nofx_trade         │  │
+│  │  • dex_swap (NEW)     │  │
+│  │  • memory           │  │
+│  │  • web_search      │  │
+│  │  • ...            │  │
+│  └─────────────────────────────┘  │
+│              │                      │
+│              ▼                      │
+│  ┌─────────────────────────────┐  │
+│  │   Learning Loop      │  │
+│  │  Save to memory    │  │
+│  │  Update skills   │  │
+│  └─────────────────────────────┘  │
+└─────────────────────────────────────────┘
+         │
+         ▼
+   Trading Execution
+```
+
+### Hermes Decision Routing (R3)
+
+| Trade Type | Route | Executor |
+|-----------|-------|---------|
+| **Perp/Futures** | `nofx_trade` → NOFX | NOFX |
+| **Hyperliquid** | `nofx_trade` → NOFX | NOFX |
+| **DEX Spot Swap** | `dex_swap` → Hermes + Wallet | Hermes |
+| **DEX Limit Order** | `dex_limit_order` → Hermes + Wallet | Hermes |
+| **Grid on DEX** | `dex_grid` → Hermes + Wallet | Hermes |
+
+---
+
+## Part 18: Multi-Agent System (cronjob + delegate)
+
+### Built-in Multi-Agent Capabilities
+
+Hermes has **built-in** multi-agent capabilities:
+
+| Component | Function | Trading Use Case |
+|-----------|----------|-------------|
+| **cronjob** | Schedule recurring tasks | Market scanning every 5 min |
+| **delegate_task** | Spawn parallel subagents | Analyze 10 coins simultaneously |
+| **Background processes** | Run tasks in background | Execute & monitor trades |
+| **Skills** | Auto-loading strategies | Trading strategy skills |
+
+### Cron Jobs for Trading
+
+```python
+# Market scanner - every 5 minutes
+cronjob(action="create", job_id="market_scanner", 
+       prompt="Scan top 20 coins on CoinGecko for >10% volume spike. "
+              "Check Twitter for sentiment. "
+              "If strong buy signal, create trade plan in memory.",
+       schedule="*/5 * * * *")
+
+# Position checker - every 15 minutes  
+cronjob(action="create", job_id="position_check",
+       prompt="Check all open positions. "
+              "If any >5% loss, evaluate stop loss. "
+              "If any >10% gain, evaluate take profit.",
+       schedule="*/15 * * * *")
+
+# Morning summary - daily
+cronjob(action="create", job_id="morning_report",
+       prompt="Generate trading summary for yesterday. "
+              "What worked, what didn't. "
+              "Update strategy in memory.",
+       schedule="0 8 * * *")
+```
+
+### Delegate for Parallel Analysis
+
+```python
+delegate_task(
+    goal="Analyze these 10 memecoins and rank by buy potential",
+    coins=["SOL", "BONK", "WIF", "POPCAT", "MEW", "BOME", "PYTH", "JUP", "RAY", "ANIME"],
+    context="Use CoinGecko for prices, DexScreener for liquidity, "
+            "Twitter for sentiment. Score 1-10 each.",
+    toolsets=["web", "trading"]
+)
+```
+
+---
+
+## Part 19: Wallet Architecture (2-Wallet Pattern)
+
+### Security Pattern: 2-Wallet per DEX
+
+| DEX | Agent Credentials | Main Wallet | Security |
+|-----|--------------|-----------|----------|---------|
+| **Hyperliquid** | privateKey (hex) | walletAddr | 2-wallet |
+| **Lighter** | API Key + Index | walletAddr | 2-wallet + API |
+| **Raydium** | Private key (base58) | Main wallet addr | 2-wallet |
+| **Jupiter** | Private key (base58) | Main wallet addr | 2-wallet |
+| **Cetus** | Private key | Main wallet addr | 2-wallet |
+
+### Agent Wallet (Sign Only)
+
+- **Purpose**: Sign transactions, hold minimal balance
+- **Security**: Balance should be ~0 (like Hyperliquid)
+- **Usage**: Transaction signing
+
+### Main Wallet (Funds)
+
+- **Purpose**: Hold funds, never expose private key
+- **Security**: Never used for signing directly
+- **Usage**: Fund agent wallet when needed
+
+### Implementation in Hermes
+
+```python
+# Hermes config: ~/.hermes/config.yaml
+dex:
+  solana:
+    agent_wallet_private_key: "${SOLANA_AGENT_KEY}"  # Encrypted
+    main_wallet_address: "${SOLANA_MAIN_WALLET}"
+  sui:
+    agent_wallet_private_key: "${SUI_AGENT_KEY}"  # Encrypted
+    main_wallet_address: "${SUI_MAIN_WALLET}"
+```
+
+---
+
+## Part 20: Similar Skills Research (GitHub)
+
+### Existing Skills to Reference
+
+| Skill | Stars | Key Features |
+|-------|------|-------------|
+| **kryptogo-meme-trader** | - | Wallet clustering, accumulation detection, swap execution |
+| **solana-agent** | 15 | Zero-hallucination tool calling, GPT-5.4 |
+| **solclaw** | 11 | 60+ Solana actions via WhatsApp/Telegram |
+| **pumpclaw** | 5 | pump.fun trading, token launch |
+| **trading212-agent-skills** | 50 | Trading 212 API wrapper |
+| **Jackhuang166/ai-memecoin-trading-bot** | 109 | Multi-agent, honeypot detection, win probability |
+
+### Key Insights from Skills
+
+1. **Cluster Analysis**: Kryptogo-style wallet clustering for smart money detection
+2. **Learning System**: Post-trade analysis, trade journal, strategy adaptation
+3. **Safety Guardrails**: Max position size, stop-loss, take-profit
+4. **Autonomous vs Supervised**: Default supervised, opt-in autonomous
+
+---
+
+## Part 21: Complete System Diagram (v2.0)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                          MEMETRADER COMPLETE SYSTEM                             │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  ┌───────────────────────────────────────────────────────────────────────────┐              │
+│  │              HERMES CORE AGENT (Port 8643)                       │              │
+│  │  ┌─────────────────────────────────────────────────────┐   │              │
+│  │  │  AI Brain: LLM (Anthropic/OpenAI/DeepSeek)      │   │              │
+│  │  │  • Single decision engine for all trading       │   │              │
+│  │  │  • Memory: learns from every trade            │   │              │
+│  │  │  • Skills: auto-improving strategies         │   │              │
+│  │  └─────────────────────────────────────────────────────┘   │              │
+│  │                        │                                   │              │
+│  │  ┌─────────────────────────────────────────────────────┐   │              │
+│  │  │  Multi-Agent System                            │   │              │
+│  │  │  • cronjob: scheduled scanning              │   │              │
+│  │  │  • delegate: parallel coin analysis      │   │              │
+│  │  │  • background: async trade execution   │   │              │
+│  │  └─────────────────────────────────────────────────────┘   │              │
+│  │                        │                                   │              │
+│  │  ┌─────────────────────────────────────────────────────┐   │              │
+│  │  │  60+ Tools                                      │   │              │
+│  │  │  • nofx_trade: perp/futures                  │   │              │
+│  │  │  • dex_swap: NEW - Solana DEX swaps         │   │              │
+│  │  │  • coingecko_price: market data          │   │              │
+│  │  │  • dexscreener_*: token analytics    │   │              │
+│  │  │  • birdeye_*: Solana data          │   │              │
+│  │  │  • twitter_sentiment: social radar    │   │              │
+│  │  │  • telegram_sentiment: signals       │   │              │
+│  │  │  • memory: persistent learning      │   │              │
+│  │  │  • delegate_task: parallel agents │   │              │
+│  │  │  • cronjob: scheduled tasks       │   │              │
+│  │  └─────────────────────���───────────────────────────────┘   │              │
+│  └───────────────────────────────────────────────────────────────────────────┘              │
+│                                    │                                             │
+│                                    │ AUTO-ROUTING (R3)                           │
+│                                    ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  ┌────────────────────┐ │
+│  │                   NOFX TRADING BACKEND                  │  │  DEX WALLETS     │ │
+│  │  ┌───────────────────────────────────────────┐       │  │  (Hermes Tool)   │ │
+│  │  │  Perps/Futures: OKX, Bybit, Gate, etc.  │       │  │  ┌──────────┐  │ │
+│  │  │  Hyperliquid, Lighter, Aster              │       │  │  │ Agent   │  │ │
+│  │  │  Grid Trading Engine                   │       │  │  │ Key     │  │ │
+│  │  │  Position Management               │       │  │  └──────────┘  │ │
+│  │  │  Risk Controls                  │       │  │  ┌──────────┐  │ │
+│  │  └───────────────────────────────────────────┘       │  │  │ Main    │  │ │
+│  └───────────────────────────────────────────┘       │  │  │ Wallet │  │ │
+│                                                │  └──────────┘  │ │
+│                                                └────────────────────┘ │
+│                                                                               │
+│  ┌───────────────────────────────────────────────────────────────────────────┐   │
+│  │                    DATA SOURCES                                      │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │   │
+│  │  │CoinGecko│ │DexScreen│ │ Birdeye │ │ Helius  │ │ NOFXos  │  │   │
+│  │  │Prices │ │  Token  │ │Solana  │ │ RPC    │ │  OI    │  │   │
+│  │  │+Market│ │Analytics│ │ Data   │ │+Webhooks│ │+AI500  │  │   │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘  │   │
+│  └───────────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌───────────────────────────────────────────────────────────────────────────┐   │
+│  │                    SOCIAL HYPE-METER                                     │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                    │   │
+│  │  │ Twitter │ │Telegram │ │ Reddit  │ │ Discord │                    │   │
+│  │  │ Sentiment│ │ Signals │ │Discussion│ │ Activity│                    │   │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘                    │   │
+│  └───────────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌───────────────────────────────────────────────────────────────────────────┐   │
+│  │                    DEX INTEGRATIONS (Solana/SUI)                       │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                  │   │
+│  │  │ Raydium │ │ Jupiter │ │  Cetus  │ │  Meteora │                  │   │
+│  │  │  DEX   │ │Aggregtr │ │  SUI    │ │  Liquidity│                  │   │
+│  │  │ Devnet │ │  Devnet │ │ Testnet │ │  Devnet │                  │   │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘                  │   │
+│  └───────────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌───────────────────────────────────────────────────────────────────────────┐   │
+│  │                    LEARNING SYSTEM                                    │   │
+│  │  ┌───────────────────────────────────────────────────────────────┐    │   │
+│  │  │  After every trade:                                          │    │   │
+│  │  │  1. Save trade to memory (Hermes)                          │    │   │
+│  │  │  2. Analyze what worked/didn't                          │    │   │
+│  │  │  3. Update strategy skill if successful                 │    │   │
+│  │  │  4. Log to trade journal                               │    │   │
+│  │  └───────────────────────────────────────────────────────────────┘    │   │
+│  └───────────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Complete Data Flow
+
+```
+User: "Buy BONK, sentiment looks bullish"
+         │
+         ▼
+┌────────────────────────────────┐
+│  HERMES CORE AGENT                │
+│  1. Analyze user request        │
+│  2. Fetch CoinGecko price    │
+│  3. Fetch DexScreener liquidity│
+│  4. Fetch Twitter sentiment │
+│  5. Fetch cluster analysis  │
+│  6. Make decision          │
+└────────────────────────────────┘
+         │
+         ▼ (DEX Spot → R3 Auto-route)
+┌────────────────────────────────┐
+│  DEX_SWAP Tool (Hermes)          │
+│  1. Get quote (Jupiter API) │
+│  2. Sign with agent wallet │
+│  3. Submit transaction │
+│  4. Monitor confirm    │
+└────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────┐
+│  JUPITER DEX (Solana)           │
+│  Execute swap on-chain        │
+└────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────┐
+│  LEARNING (Hermes Memory)        │
+│  Save trade analysis       │
+│  Update strategy       │
+│  Log to journal      │
+└────────────────────────────────┘
+```
+
+---
+
+## Part 22: Testing Pipeline (Complete)
+
+```
+TESTING PHASE 1: Paper Simulation
+├── Goal: Prove strategy works in virtual
+├── Environment: NOFX testnet / Hyperliquid testnet
+├── Target: 5x hit $100,000
+└── Verify: Consistent results across 10 runs
+
+TESTING PHASE 2: DEX Devnet
+├── Goal: Test real DEX execution
+├── Environment: Solana devnet (Raydium/Jupiter)
+├── Target: Execute 10 successful swaps
+└── Verify: Transactions confirm
+
+TESTING PHASE 3: Small Real Money
+├── Goal: First real trades
+├── Environment: Solana mainnet
+├── Amount: $10-100
+└── Verify: Full pipeline works
+
+TESTING PHASE 4: Scale Up
+├── Goal: Grow from $10 to $100,000
+├── Strategy: Proven in phases 1-3
+└── Risk: Maximum 5% of portfolio per trade
+
+SUCCESS CRITERIA:
+- ✅ 5x hit $100k in paper
+- ✅ 10 successful devnet swaps
+- ✅ First real money trade executed
+- ✅ Learning system captures trade data
+```
+
+---
+
+*Document Version: 2.0*
 *Status: Design Complete - Ready for Implementation Planning*
+*(All brainstorming decisions documented)*
