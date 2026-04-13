@@ -327,6 +327,51 @@ type GridTrader interface {
 }
 ```
 
+### DEX Swap - NEW Functionality
+
+**Current State:** NOFX is perp-focused - NO swap functionality exists.
+
+**New Addition Required:** Add DEX swap capability for:
+- Token-to-token swaps (SOL/USDC, SOL/COIN, COIN/COIN)
+- Limit orders on DEX
+- Grid trading on DEX
+
+### DEX Integration Technical Details
+
+| DEX | Language | API | Devnet | Notes |
+|-----|----------|-----|-------|-------|
+| **Raydium** | TypeScript | REST API | ✅ | No Go SDK - needs wrapper |
+| **Jupiter** | TypeScript | v1 API (new) | ✅ | Best aggregator |
+| **Cetus** | TypeScript | REST | ✅ | SUI only |
+
+### DEX Implementation Approach
+
+1. **Hermes Tool** (`tools/dex_swap_tool.py`)
+   - Direct REST calls to DEX APIs
+   - Wallet signing via Solana wallet
+   - Devnet for testing
+
+2. **NOFX Integration** (future)
+   - Add Go wrapper for DEX
+   - Full trading pipeline
+
+### Supported Swap Pairs
+
+```
+SOL/USDC - Most liquid
+SOL/COIN - Meme coin trading (main use case)
+COIN/COIN - Any token pair via Jupiter routing
+```
+
+### Trading Types
+
+| Type | Description | Support |
+|------|------------|----------|
+| **Market Swap** | Instant swap at best price | Via DEX API |
+| **Limit Swap** | Swap at target price | New (needs implementation) |
+| **Grid Swap** | Multiple limit orders | New (needs implementation) |
+| **Perp Trading** | Existing in NOFX | ✅ |
+
 ---
 
 ## Part 5: Testing Strategy ($10 → $100k)
@@ -611,18 +656,143 @@ No real money until proven in testnet 5x.
 
 ---
 
-## Part 12: References
+## Part 13: Wallet & Security
 
-- CoinGecko API: https://www.coingecko.com/en/api
-- DexScreener: https://dexscreener.com
-- Birdeye: https://birdeye.so
-- Raydium API: https://docs.raydium.io/raydium/api-reference
-- Jupiter API: https://dev.jup.ag/api-reference
-- Cetus Docs: https://cetus-1.gitbook.io/cetus-developer-docs/
-- Hermes Memory: `tools/memory_tool.py`
-- RL Training: `tools/rl_training_tool.py`
+### DEX Wallet Management
+
+**Solana Wallet:**
+- Stored in config: `SOLANA_WALLET_PRIVATE_KEY`
+- Used for signing DEX transactions
+- Supports devnet for testing
+
+**Wallet Pattern in Code:**
+```go
+type DexWallet struct {
+    PrivateKey string  // Base58 encoded
+    PublicKey string  // Wallet address
+}
+
+// Sign transaction for submission
+func (w *DexWallet) SignTransaction(tx []byte) ([]byte, error)
+```
+
+### Hermes Integration
+
+**Trading Flow:**
+```
+User → Hermes (chat) → 
+  → nofx_trade (perp) OR 
+  → dex_swap (new - token swap)
+  → Wallet signing
+  → DEX API → Blockchain
+```
+
+**Tool Options:**
+- Use `nofx_trade` for perps (existing)
+- Use `dex_swap` for DEX (new)
 
 ---
 
-*Document Version: 1.1*
+## Part 14: Testnet Setup
+
+### Devnet Configuration
+
+**Solana Devnet:**
+- RPC: https://api.devnet.solana.com
+- WS: wss://api.devnet.solana.com
+- Faucet: https://solfaucet.com
+
+**Test Tokens:**
+- Airdrop SOL from faucet
+- Use USDC mock for testing
+
+### Testing Pipeline
+
+```
+Step 1: Devnet Swap
+  - Test basic swap (SOL → USDC)
+  - Verify transaction success
+  - No real value
+
+Step 2: Meme Coin Test
+  - Swap to test token
+  - Verify routing works
+
+Step 3: Limit Order Test
+  - Place limit order
+  - Test fill/cancel
+
+Step 4: Grid Test
+  - Deploy grid strategy
+  - Verify multiple orders
+
+Step 5: Production Ready
+  - Move to mainnet
+  - Start with small amount
+```
+
+---
+
+## Part 15: Implementation Priority
+
+### Phase 1: Data Sources (C)
+1. CoinGecko tool
+2. DexScreener tool
+3. Birdeye tool
+
+### Phase 2: DEX Swap Tool (D)
+1. Hermes tool: `dex_swap_tool.py`
+2. Jupiter integration
+3. Raydium integration
+4. Limit order support
+
+### Phase 3: On-Chain Radar
+1. Solana RPC via Helius
+2. Wallet tracking
+3. Pool detection
+
+### Phase 4: Social Hype-Meter
+1. Twitter scraper
+2. Telegram scraper
+3. Sentiment analysis
+
+### Phase 5: Self-Evolution
+1. Hermes memory integration
+2. Trade analysis logging
+3. Strategy adaptation
+
+---
+
+## Part 16: References
+
+### Data Sources APIs
+- CoinGecko API: https://www.coingecko.com/en/api
+- DexScreener: https://dexscreener.com
+- Birdeye: https://birdeye.so
+- CoinGecko Docs: https://docs.coingecko.com
+
+### DEX APIs
+- Raydium Swap API: https://docs.raydium.io/raydium/for-traders/raydium-swap
+- Jupiter API v1: https://dev.jup.ag/docs/swap-api
+- Jupiter Ultra Swap: https://docs.jup.ag/
+- Cetus Docs: https://cetus-1.gitbook.io/cetus-developer-docs/
+
+### Solana
+- Solana RPC: https://solana.com/docs/rpc
+- Helius: https://helius.dev (RPC + parsed DEX)
+- Solana Stack Exchange: https://solanastackexchange.com
+
+### NOFX
+- Existing perp traders: `nofx/trader/bybit/`, `nofx/trader/okx/`, etc.
+- Grid interface: `nofx/trader/types/interface.go`
+- Wallet management: `nofx/wallet/`
+
+### Hermes
+- Memory: `tools/memory_tool.py`
+- RL Training: `tools/rl_training_tool.py`
+- NOFX trading tool: `tools/nofx_trading_tool.py`
+
+---
+
+*Document Version: 1.2*
 *Status: Design Complete - Ready for Implementation Planning*
