@@ -1898,16 +1898,49 @@ USER: "BUY 0.1 SOL BONK"
 
 ### Overview
 
-Security checks are MANDATORY for all DEX trades. NOFX uses existing backend security.
+Security checks happen at **COIN SELECTION PHASE**, not before trade execution. This ensures:
+1. Only safe coins are presented to user
+2. Risky coins are filtered out before user sees them
+3. Better user experience
 
-### Security Flow
+### Corrected Security Flow (Before Selection, Not Execution)
 
 ```
-BEFORE ANY DEX TRADE:
+COIN SELECTION PHASE:
          │
          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│               SECURITY SCAN (Before Trade)                    │
+│               SECURITY SCAN (Before Coin Selection)           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. USER asks: "Find meme coins with potential"                 │
+│                                                                  │
+│  2. HERMES scans for coins (Twitter, DexScreener, etc.)     │
+│                                                                  │
+│  3. SECURITY CHECK runs on discovered coins                │
+│     • Check mint authority                                   │
+│     • Check liquidity lock                                  │
+│     • Check dev concentration                              │
+│     • Check trust score                                  │
+│                                                                  │
+│  4. FILTER OUT unsafe coins                                 │
+│     • Only present PASSED coins as options                 │
+│     • Risky coins NEVER shown to user                     │
+│                                                                  │
+│  5. USER selects from SAFE coins ONLY                     │
+│                                                                  │
+│  6. EXECUTE trade (already verified safe)             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Security Flow (Per-Chain)
+
+```
+BEFORE COIN SELECTION:
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               SECURITY SCAN (Per Chain)                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  INPUT: token_address, chain (solana/sui)                        │
@@ -2029,6 +2062,81 @@ Learning System:
 |-------|-----|-------------|--------------|
 | **Solana** | Jupiter/Raydium | dexranger + pump-fun-rug-checker | Mint, freeze, liquidity, dev, honeypot |
 | **SUI** | Cetus | suihoneypot | Honeypot detection |
+
+---
+
+## Part 30: UI Trading Panels
+
+### Overview
+
+The /hermes page includes two trading panels for coin discovery:
+
+| Panel | Purpose | Security |
+|------|---------|----------|
+| **Safe Trending** | Only security-passed coins | ✅ Filtered |
+| **All Trending** | All trending coins | ⚠️ Warning on risky |
+
+### UI Layout
+
+```
+/HERMES PAGE - TRADING UI:
+
+┌─────────────────────────────┬─────────────────────────────────────┐
+│   🔒 SAFE TRENDING          │   📈 ALL TRENDING                     │
+│   (Security Passed)        │   (No Filter - Warning on Risky)      │
+├─────────────────────────────┼─────────────────────────────────────┤
+│  Chain Filter: [Sol][SUI]  │  Chain Filter: [Sol][SUI]            │
+│         │                   │         │                            │
+│  $BONK  ✅  Trust: 85     │  $RUG   ⚠️  Trust: 30              │
+│  $WIF   ✅  Trust: 92     │  $SCAM  🔴  Trust: 5               │
+│  $MEW   ✅  Trust: 78     │  $PEPE  ⚠️  Trust: 25              │
+│         │                   │         │                            │
+│  [Select → Trade Ready]    │  [Select → Warn + Trade]            │
+└─────────────────────────────┴─────────────────────────────────────┘
+```
+
+### Panel Differences
+
+| Feature | Safe Trending | All Trending |
+|---------|--------------|-------------|
+| **Source** | Trending coins | Trending coins |
+| **Security** | Only passed | All coins |
+| **Display** | ✅ Green check | ⚠️ Warning badges |
+| **User Action** | Click to trade | Click - show warning |
+| **Default Chain** | Both Sol + SUI | Both Sol + SUI |
+
+### Chain Filter (Both Panels)
+
+| Option | Description |
+|--------|-------------|
+| **Sol** | Solana only |
+| **SUI** | SUI only |
+| **Both** | Default - Solana + SUI |
+
+### Warning System (All Trending Panel)
+
+For coins with low trust score in "All Trending":
+- Display ⚠️ Warning badge
+- Show trust score < 70
+- On click: Show warning modal before allowing selection
+- User can still trade but acknowledge risk
+
+### Configuration
+
+```yaml
+# Trading Panels
+ui:
+  panels:
+    safe_trending:
+      enabled: true
+      default_filter: both  # Solana + SUI
+      
+    all_trending:
+      enabled: true
+      default_filter: both
+      show_warnings: true
+      allow_selection_with_warning: true  # W1 confirmed
+```
 
 ---
 
