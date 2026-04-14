@@ -2177,7 +2177,121 @@ ui:
 
 ---
 
-*Document Version: 5.0*
-*Status: Design Complete - All Brainstorming Decisions Documented*
-*Security System Added for Solana + SUI*
-*Ready for Implementation Planning*
+## Part 31: Complete DEX Research & Integration Research
+
+### SOLANA DEX Integrations
+
+| DEX | Type | API Method | Integration | Trust | Best For |
+|-----|------|-----------|-------------|-------|----------|
+| **Jupiter** | Aggregator | REST v2 (`/order` → `/execute`) | REST API | ✅ Best routes | General swapping |
+| **pump.fun** | Launchpad | REST (pumpdev.io) | API (0.25% fee) | API required | New meme coins |
+| **Raydium** | DEX | REST API | Direct pools | API key | Direct pools |
+| **Orca** | DEX | Whirlpool SDK | SDK | API key | Concentrated liquidity |
+| **Meteora** | DLMM | SDK | SDK | API key | Dynamic pools |
+| **solana-trade** | Multi-DEX | npm library | `15+ DEXs npm` | Optional | All-in-one |
+
+### SUI DEX Integrations
+
+| DEX | Type | API Method | Integration | Trust |
+|-----|------|-----------|-------------|-------|
+| **Cetus** | CLMM | SDK | @cetusprotocol/sui-clmm-sdk | ✅ Main SUI DEX |
+| **MooDex** | DEX | REST | Coming | - |
+
+### Jupiter Swap Flow
+
+```
+1. GET /order?inputMint=...&outputMint=...&amount=... → Get quote + transaction
+2. Sign transaction with wallet (base58 private key)
+3. POST /execute with signed transaction → Submit to chain
+```
+
+**API Key:** Free tier available at https://developers.jup.ag
+
+### Cetus Swap Flow
+
+```
+1. preSwap: Calculate result (input amount, output amount, fees)
+2. createSwapPayload: Build transaction
+3. Send transaction with SUI wallet
+```
+
+**SDK:** npm install @cetusprotocol/sui-clmm-sdk
+
+### Pump.fun Integration
+
+```
+API: https://pumpdev.io (Lightning - server signing)
+or
+API: https://pumpdev.io (Client-side - sign locally)
+
+Features:
+- Token creation
+- Trading (buy/sell)
+- WebSocket real-time data
+- Jito bundles for launches
+```
+
+### Libraries for DEX Integration
+
+| Library | Use | Link |
+|---------|-----|------|
+| **solana-trade** | Multi-DEX npm library | https://github.com/MadgicDev/solana-trade |
+| **pumpdev.io** | Pump.fun SDK | https://github.com/pumpdev3/pumpdev.io |
+| **@cetusprotocol/sui-clmm-sdk** | SUI Cetus SDK | npm |
+
+### Tool Implementation Pattern
+
+New tool needed: `tools/dex_swap_tool.py`
+
+```python
+# Functions needed:
+def jupiter_swap(input_token, output_token, amount, slippage)
+def get_jupiter_quote(input_token, output_token, amount)
+def get_jupiter_tokens()  # Get available tokens
+
+def cetus_swap(pool_id, from_token, to_token, amount)
+def get_cetus_pools()  # Get available pools
+```
+
+---
+
+## Part 32: Complete Codebase Context
+
+### Hermes Agent Architecture
+
+```
+Port: 8643 (FastAPI server)
+Core: run_agent.py (AIAgent class)
+Tools: 60+ tools in tools/
+  - Registry: tools/registry.py
+  - Pattern: registry.register(name, toolset, schema, handler)
+  - Returns: JSON string
+```
+
+### NOFX Architecture
+
+```
+Port: 8080 (Go trading backend)
+Exchanges: 9 (OKX, Bybit, Gate, KuCoin, Hyperliquid, Bitget, Lighter, Indodax, Aster)
+Trading Tool: tools/nofx_trading_tool.py
+  - Returns: JSON via NOFX REST API
+```
+
+### Existing Trading Tools (Data Only)
+
+From `tools/trading/__init__.py`:
+- `get_supported_chains_tool` - List chains
+- `get_tokens_tool` - Get tokens for chain
+- `get_token_price_tool` - Get price
+- `get_trending_tokens_tool` - Trending tokens
+- `search_token_tool` - Search tokens
+- `get_token_market_data_tool` - Market data
+
+**These are for DATA only - Not actual swap execution!**
+
+---
+
+*Document Version: 6.0*
+*Status: Research Complete - DEX Integration Research Documented*
+*Codebase Context Added*
+*Ready for Implementation*
