@@ -1,8 +1,9 @@
 # MemeTrader Unified System - Detailed Design
 
-> **Status**: Design Document (Brainstorming Complete)
-> **Date**: 2026-04-13
-> **Version**: 8.0 (Updated - All Decisions Finalized)
+> **Status**: Design Document (Complete)
+> **Date**: 2026-04-14
+> **Version**: 9.0 (Updated - GitHub Integrations Added)
+> **Interactive**: [memetrader-complete-architecture.html](memetrader-complete-architecture.html) (clickable diagram)
 
 ---
 
@@ -10,7 +11,7 @@
 
 This document outlines the comprehensive design for unifying Hermes Agent with NOFX trading backend into a single AI-powered trading platform. The system will use Hermes as the single AI brain for all trading decisions, with NOFX serving as the execution layer.
 
-### Key Decisions Made (v8.0)
+### Key Decisions Made (v9.0)
 
 | Decision | Description | Status |
 |----------|-------------|--------|
@@ -20,18 +21,21 @@ This document outlines the comprehensive design for unifying Hermes Agent with N
 | **API Connection** | Use FastAPI on port 8643 (not Gateway) | ✅ |
 | **Data Sources** | Add CoinGecko, DexScreener, Birdeye, Helius | ✅ |
 | **DEX Support** | Solana (Jupiter), SUI (Cetus), Base (Aerodrome) | ✅ |
-| **CEX Spot** | Add Binance, OKX, Bybit spot to NOFX | ✅ NEW |
+| **CEX Spot** | Add Binance, OKX, Bybit spot to NOFX | ✅ |
 | **CEX Perp** | Keep existing (OKX, Bybit, Gate, Hyperliquid, etc.) | ✅ |
-| **Chain Focus** | SOL, SUI, BASE (not more chains) | ✅ NEW |
+| **Chain Focus** | SOL, SUI, BASE (not more chains) | ✅ |
 | **Routing (R3)** | Auto-route based on trade type | ✅ |
 | **Wallet Pattern** | 2-wallet (agent + main) for all chains | ✅ |
-| **Wallet Storage** | Environment variables (SOLANA_AGENT_KEY, SUI_AGENT_KEY) | ✅ NEW |
+| **Wallet Storage** | Environment variables (SOLANA_AGENT_KEY, SUI_AGENT_KEY) | ✅ |
 | **Social Agents** | 4 agents in parallel: Twitter + Telegram + Discord + News | ✅ |
 | **Twitter API** | Twikit (FREE - no API key!) | ✅ |
-| **Implementation Order** | Social → Data → DEX → CEX Spot → Security | ✅ NEW |
-| **Max Trade Size** | User configurable, default ≤ 0.1 SOL auto, > 0.1 SOL requires approval | ✅ NEW |
-| **Signal Channel** | Signal only now, tip jar placeholder for future | ✅ NEW |
-| **NOFX AI Wrapper** | HTTP call to Hermes FastAPI (8643) | ✅ NEW |
+| **Implementation Order** | Social → Data → DEX → CEX Spot → Security | ✅ |
+| **Max Trade Size** | User configurable, default ≤ 0.1 SOL auto, > 0.1 SOL requires approval | ✅ |
+| **Signal Channel** | Signal via Telegram (Hermes Gateway) | ✅ |
+| **NOFX AI Wrapper** | HTTP call to Hermes FastAPI (8643) | ✅ |
+| **Risk Parameters** | 5% pos limit, -10% drawdown, -15% stop loss | ✅ NEW |
+| **Trading Mode** | Supervised default, autonomous opt-in | ✅ NEW |
+| **GitHub Integrations** | Added Sui/Base/Security tools (all FREE) | ✅ NEW |
 
 ---
 
@@ -551,6 +555,38 @@ ui:
 
 ---
 
+## Part 9: Risk Management (NEW in v9.0)
+
+### 9.1 Risk Parameters
+
+| Parameter | Default | Configurable |
+|-----------|---------|--------------|
+| **Max Position Size** | 5% of portfolio per coin | Yes |
+| **Max Drawdown (daily)** | -10% → auto-close all | Yes |
+| **Stop Loss** | -15% hard stop | Yes |
+| **Take Profit** | +30% trailing or fixed | Yes |
+| **Max Open Positions** | 5 concurrent | Yes |
+| **Approval Threshold** | Trades > $100 require approval | Yes |
+
+### 9.2 Trading Modes
+
+| Mode | Behavior | Default |
+|------|----------|---------|
+| **Supervised** ✅ | Executes trades, sends notification | Default |
+| **Alert-Only** | Analyzes + suggests, waits for `/trade` command | |
+| **Autonomous** | Full auto-execution, notification after | Opt-in |
+| **Paper Mode** | Simulates all, never executes | Always available |
+
+### 9.3 Security Tools (NEW)
+
+| Tool | Purpose | Chain |
+|------|---------|-------|
+| **DEX Ranger** | Token safety check | SOL/ETH/BSC/TON |
+| **Honeypot Detector** | Rug pull detection | EVM |
+| **HoneyPotDetectionOnSui** | SUI security | SUI |
+
+---
+
 ## Part 10: The Vision - Autonomous AI Trading Firm
 
 ### The Grand Vision
@@ -650,7 +686,45 @@ No real money until proven in testnet 5x.
 
 ---
 
-## Part 13: Wallet & Security
+## Appendix B: GitHub Integrations (All FREE - NEW in v9.0)
+
+### Solana (SOL) Integrations
+
+| Repo | Use Case | Stars | Cost |
+|------|----------|-------|------|
+| [sendaifun/solana-agent-kit](https://github.com/sendaifun/solana-agent-kit) | 60+ Solana actions - Jupiter, Raydium, Pump.fun | 1.6k | FREE |
+| [sashazykov/dexranger-skill](https://github.com/sashazykov/dexranger-skill) | Token safety - Hermes skill format! | N/A | FREE |
+| [twikit/twikit](https://github.com/5e4cd8b4-9cb1-4e31-9ae5-65c7f5f38ca8/twikit) | **FREE Twitter API** - no key needed! | 4.2k | FREE |
+| [Rezzecup/twitter-alpha-sentiment-tracker-v2](https://github.com/Rezzecup/twitter-alpha-sentiment-tracker-v2) | Smart money signals - FinBERT + VADER | 14 | FREE |
+
+### Sui Chain Integrations
+
+| Repo | Use Case | Stars | Cost |
+|------|----------|-------|------|
+| [kukapay/sui-trader-mcp](https://github.com/kukapay/sui-trader-mcp) | MCP for Cetus swaps | 5 | FREE |
+| [pelagosaionsui/sui-agent-kit](https://github.com/pelagosaionsui/sui-agent-kit) | Sui Agent Kit - Navi, Cetus, Suilend | 11 | FREE |
+| [aldrin-labs/capybot](https://github.com/aldrin-labs/capybot) | Sui DEX arbitrage - Cetus, Turbos, Suiswap | 21 | FREE |
+| [SuiSec/HoneyPotDetectionOnSui](https://github.com/SuiSec/HoneyPotDetectionOnSui) | Honeypot detection | 13 | FREE |
+
+### Base Chain Integrations
+
+| Repo | Use Case | Stars | Cost |
+|------|----------|-------|------|
+| [nirholas/universal-crypto-mcp](https://github.com/nirholas/universal-crypto-mcp) | 380+ tools across 20+ chains | 27 | FREE |
+| [edkdev/defi-trading-mcp](https://github.com/edkdev/defi-trading-mcp) | 25+ tools, 17+ chains | 42 | FREE |
+| [clawd800/pumpclaw](https://github.com/clawd800/pumpclaw) | Token launcher - Uniswap V4, 80% fees | ⭐⭐⭐ | FREE |
+| [chainstacklabs/web3-ai-trading-agent](https://github.com/chainstacklabs/web3-ai-trading-agent) | Base + Uniswap V4 example | 60 | FREE |
+
+### Multi-Chain Integrations
+
+| Repo | Use Case | Stars | Cost |
+|------|----------|-------|------|
+| [igormoondev/onchain-agent-kit](https://github.com/sebasneuron/onchain-agent-kit) | Modular framework - EVM + Sui, EIP-8004 | 122 | FREE |
+| [cortexaiofficial/Autonomous-AI-Trading-Agent-MCP-Flash-Arb-Engine](https://github.com/cortexaiofficial/Autonomous-AI-Trading-Agent-MCP-Flash-Arb-Engine) | Multi-chain flash arbitrage | 25 | FREE |
+
+---
+
+## Part 9: Risk Management (NEW in v9.0)
 
 ### DEX Wallet Management
 
@@ -2385,6 +2459,7 @@ All agents run in parallel and route signals to Hermes orchestrator for decision
 
 ---
 
-*Document Version: 8.0*
-*Status: All Decisions Finalized*
+*Document Version: 9.0*
+*Status: GitHub Integrations Added*
 *Date: 2026-04-14*
+*Interactive HTML: memetrader-complete-architecture.html*
