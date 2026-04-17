@@ -31,6 +31,9 @@ edge-tts
 solders>=0.27.0
 base58>=2.1.0
 
+# Social tools
+twikit>=2.0
+
 # Optional: For cron expression parsing (cronjob scheduling)
 croniter
 

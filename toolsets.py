@@ -121,6 +121,24 @@ TOOLSETS = {
         ],
         "includes": [],
     },
+    "onchain": {
+        "description": "On-chain radar tools (Solana/Helius)",
+        "tools": [
+            "helius_tx_details",
+            "helius_signatures",
+            "helius_token_accounts",
+            "helius_cluster_nodes",
+        ],
+        "includes": [],
+    },
+    "social": {
+        "description": "Social sentiment tools",
+        "tools": [
+            "twitter_search",
+            "twitter_trending",
+        ],
+        "includes": [],
+    },
     "vision": {
         "description": "Image analysis and vision tools",
         "tools": ["vision_analyze"],

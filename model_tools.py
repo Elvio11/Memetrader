@@ -167,6 +167,8 @@ def _discover_tools():
         "tools.birdeye_tool",
         "tools.dex_swap_tool",
         "tools.solana_wallet",
+        "tools.helius_tool",
+        "tools.twitter_sentiment_tool",
     ]
     import importlib
 
