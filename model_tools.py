@@ -166,6 +166,7 @@ def _discover_tools():
         "tools.dexscreener_tool",
         "tools.birdeye_tool",
         "tools.dex_swap_tool",
+        "tools.solana_wallet",
     ]
     import importlib
 
