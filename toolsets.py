@@ -139,6 +139,15 @@ TOOLSETS = {
         ],
         "includes": [],
     },
+    "analysis": {
+        "description": "Trading analysis and self-evolution",
+        "tools": [
+            "trade_recent",
+            "trade_performance",
+            "trade_suggestions",
+        ],
+        "includes": [],
+    },
     "vision": {
         "description": "Image analysis and vision tools",
         "tools": ["vision_analyze"],

@@ -169,6 +169,7 @@ def _discover_tools():
         "tools.solana_wallet",
         "tools.helius_tool",
         "tools.twitter_sentiment_tool",
+        "tools.trade_analysis_tool",
     ]
     import importlib
 
