@@ -178,45 +178,47 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		aiModel = "qwen"
 	}
 
+	// DISABLED: NOFX internal AI calls - decisions now come from Hermes
+	// AI decision making has been moved to Hermes Agent
 	// Resolve API key (provider-specific overrides)
-	apiKey := config.CustomAPIKey
-	customURL := config.CustomAPIURL
-	switch aiModel {
-	case "qwen":
-		if config.QwenKey != "" {
-			apiKey = config.QwenKey
-		}
-	case "deepseek", "":
-		if config.DeepSeekKey != "" {
-			apiKey = config.DeepSeekKey
-		}
-	}
+	// apiKey := config.CustomAPIKey
+	// customURL := config.CustomAPIURL
+	// switch aiModel {
+	// case "qwen":
+	// 	if config.QwenKey != "" {
+	// 		apiKey = config.QwenKey
+	// 	}
+	// case "deepseek", "":
+	// 	if config.DeepSeekKey != "" {
+	// 		apiKey = config.DeepSeekKey
+	// 	}
+	// }
 
 	// Create client via registry (covers all registered providers)
-	if aiModel == "custom" {
-		mcpClient = mcp.New()
-	} else if aiModel == "" {
-		aiModel = "deepseek"
-		mcpClient = mcp.NewAIClientByProvider(aiModel)
-	} else {
-		mcpClient = mcp.NewAIClientByProvider(aiModel)
-	}
-	if mcpClient == nil {
-		mcpClient = mcp.New()
-	}
+	// if aiModel == "custom" {
+	// 	mcpClient = mcp.New()
+	// } else if aiModel == "" {
+	// 	aiModel = "deepseek"
+	// 	mcpClient = mcp.NewAIClientByProvider(aiModel)
+	// } else {
+	// 	mcpClient = mcp.NewAIClientByProvider(aiModel)
+	// }
+	// if mcpClient == nil {
+	// 	mcpClient = mcp.New()
+	// }
 
 	// Payment providers (claw402) ignore customURL
-	switch aiModel {
-	case "claw402":
-		mcpClient.SetAPIKey(apiKey, "", config.CustomModelName)
-	default:
-		mcpClient.SetAPIKey(apiKey, customURL, config.CustomModelName)
-	}
-	logger.Infof("🤖 [%s] Using %s AI", config.Name, aiModel)
+	// switch aiModel {
+	// case "claw402":
+	// 	mcpClient.SetAPIKey(apiKey, "", config.CustomModelName)
+	// default:
+	// 	mcpClient.SetAPIKey(apiKey, customURL, config.CustomModelName)
+	// }
+	logger.Infof("🤖 [%s] AI DISABLED - decisions now handled by Hermes Agent", config.Name)
 
-	if config.CustomAPIURL != "" || config.CustomModelName != "" {
-		logger.Infof("🔧 [%s] Custom config - URL: %s, Model: %s", config.Name, config.CustomAPIURL, config.CustomModelName)
-	}
+	// if config.CustomAPIURL != "" || config.CustomModelName != "" {
+	// 	logger.Infof("🔧 [%s] Custom config - URL: %s, Model: %s", config.Name, config.CustomAPIURL, config.CustomModelName)
+	// }
 
 	// Set default trading platform
 	if config.Exchange == "" {

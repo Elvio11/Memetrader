@@ -162,6 +162,7 @@ def _discover_tools():
         "tools.homeassistant_tool",
         "tools.trading",
         "tools.nofx_trading_tool",
+        "tools.coingecko_tool",
     ]
     import importlib
 

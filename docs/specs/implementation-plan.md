@@ -20,7 +20,7 @@ This implementation plan breaks down the MemeTrader unified system into bite-siz
 - All changes are committed frequently
 - TDD approach where possible
 
-## Phase 1: Cleanup and Integration Setup
+## Phase 1: Cleanup and Integration Setup ✅ COMPLETED
 
 ### A1: Remove Paper Trading from Hermes
 
@@ -73,9 +73,11 @@ from .paper_engine import PaperTradingEngine
 - **Test:** Execute a simple NOFX command via Hermes
 - **Commit:** "Verify NOFX tool integration"
 
-## Phase 2: UI Integration (NOFX-UI)
+## Phase 2: UI Integration (NOFX-UI) ✅ COMPLETED
 
 **Goal:** Add `/hermes` page to NOFX-UI with Chat, Memory, Skills, Inspector tabs.
+
+**Status:** Completed. Implemented `/hermes` routing, created Chat/Memory/Skills/Inspector tab components, and wired Hermes trading decision support via the backend `/api/trading/decision` endpoint.
 
 ### C1: Create Hermes Page Component
 
@@ -541,6 +543,8 @@ export default function InspectorTab() {
 ## Phase 3: Data Sources Integration
 
 **Goal:** Add CoinGecko, DexScreener, and Birdeye tools to Hermes.
+
+**Status:** Started — CoinGecko data tooling implemented and registered as the first Phase 3 milestone.
 
 ### D1: CoinGecko Tool
 

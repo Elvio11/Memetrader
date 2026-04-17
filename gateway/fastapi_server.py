@@ -28,7 +28,6 @@ from hermes_cli.config import load_config
 from hermes_state import SessionDB
 from tools.memory_tool import MemoryStore
 from tools.skills_tool import skill_view, skills_categories, skills_list
-from tools.trading.paper_engine import get_paper_engine, reset_paper_trading
 from tools.crypto.price_oracle import (
     get_token_price,
     get_trending_meme_tokens,
@@ -641,161 +640,130 @@ async def delete_memory(request: Request):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# ============================================================================
-# Trading API
-# ============================================================================
-
-
-@app.get("/api/trading/stats")
-async def trading_stats(request: Request):
-    """Get paper trading statistics."""
-    try:
-        engine = get_paper_engine()
-
-        # Get prices for valuation
-        tokens = []
-        for chain, wallet in engine.portfolio.wallets.items():
-            for token in wallet.current_balance.keys():
-                tokens.append({"chain": chain, "token": token})
-
-        prices = get_prices_batch(tokens)
-        engine.get_portfolio_value(prices)
-
-        stats = engine.get_stats()
-        return stats
-    except Exception as e:
-        logger.error(f"Error getting trading stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/trading/portfolio")
-async def trading_portfolio(request: Request):
-    """Get paper trading portfolio."""
-    try:
-        engine = get_paper_engine()
-
-        tokens = []
-        for chain, wallet in engine.portfolio.wallets.items():
-            for token in wallet.current_balance.keys():
-                tokens.append({"chain": chain, "token": token})
-
-        prices = get_prices_batch(tokens)
-        engine.get_portfolio_value(prices)
-
-        stats = engine.get_stats()
-        portfolio = engine.portfolio.to_dict()
-
-        return {
-            "stats": stats,
-            "wallets": portfolio["wallets"],
-            "positions": portfolio["positions"],
-            "recent_trades": portfolio["trades"][-10:] if portfolio["trades"] else [],
-        }
-    except Exception as e:
-        logger.error(f"Error getting portfolio: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/trading/balance")
-async def trading_balance(request: Request, chain: str = "ethereum", token: str = None):
-    """Get wallet balance for a chain/token."""
-    try:
-        engine = get_paper_engine()
-        balance = engine.get_balance(chain, token)
-        return balance
-    except Exception as e:
-        logger.error(f"Error getting balance: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/trading/prices")
-async def trading_prices(request: Request, tokens: str = "", chain: str = "ethereum"):
-    """Get token prices."""
-    try:
-        token_list = []
-        if tokens:
-            for t in tokens.split(","):
-                token_list.append({"chain": chain, "token": t.strip()})
-
-        prices = get_prices_batch(token_list)
-        return {"prices": prices}
-    except Exception as e:
-        logger.error(f"Error getting prices: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/trading/trending")
-async def trading_trending(request: Request):
-    """Get trending meme tokens."""
-    try:
-        tokens = get_trending_meme_tokens()
-        return {"trending": tokens}
-    except Exception as e:
-        logger.error(f"Error getting trending: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/trading/swap")
-async def trading_swap(request: Request):
-    """Execute a paper trade."""
+@app.post("/api/trading/decision")
+async def trading_decision(request: Request):
+    """Get a trading decision from Hermes Agent."""
     try:
         body = await request.json()
-        chain = body.get("chain", "ethereum")
-        from_token = body.get("from_token")
-        to_token = body.get("to_token")
-        amount = body.get("amount")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
 
-        if not all([from_token, to_token, amount]):
-            raise HTTPException(
-                status_code=400,
-                detail="Missing required fields: chain, from_token, to_token, amount",
-            )
+    context = body.get("context", {})
+    strategy = body.get("strategy", "meme_trading")
+    exchange = body.get("exchange", "unknown")
 
-        # Get price and execute
-        price = get_token_price(chain, from_token)
-        if not price:
-            raise HTTPException(
-                status_code=400, detail=f"Could not get price for {from_token}"
-            )
+    system_prompt = (
+        "You are Hermes Agent, providing structured trading decisions for MemeTrader. "
+        "Given the trading context, return only a valid JSON array of decision objects. "
+        "Each decision must include at least `action` and `symbol`. Optional fields may include `confidence`, "
+        "`leverage`, `stop_loss`, `take_profit`, `quantity`, `position_size_usd`, `price`, `order_id`, and `reasoning`. "
+        "If no trade is recommended, return a single safe wait decision with action `wait` and symbol `ALL`. "
+        "Do not include any markdown, explanation text, or additional wrapper objects outside the JSON array."
+    )
 
-        engine = get_paper_engine()
-        amount_out = amount * price
+    user_prompt = (
+        f"Strategy: {strategy}\n"
+        f"Exchange: {exchange}\n"
+        "Trading Context:\n"
+        f"{json.dumps(context, indent=2)}\n\n"
+        "Return a valid JSON array of decisions."
+    )
 
-        to_price = get_token_price(chain, to_token)
-        if to_price and to_price > 0:
-            amount_out = (amount * price) / to_price
+    try:
+        config = load_config()
+        current_model = get_current_model(config)
+        provider_name = current_model["provider"]
+        model = current_model["model"]
+        api_mode = current_model["api_mode"]
+        base_url = current_model["base_url"]
 
-        result = engine.execute_trade(
-            chain=chain,
-            pair=f"{from_token}/{to_token}",
-            side="buy",
-            amount_in=amount,
-            token_in=from_token,
-            amount_out=amount_out,
-            token_out=to_token,
-            price=price,
-            price_usd=price * amount,
-            fee=0.001 * amount,
-            fee_usd=0.001 * amount * price,
+        custom_providers = config.get("custom_providers", [])
+        provider_settings = next(
+            (p for p in custom_providers if p.get("name") == provider_name),
+            None,
         )
 
-        return result
-    except HTTPException:
-        raise
+        if provider_settings:
+            api_key = provider_settings.get("api_key", "")
+            base_url = provider_settings.get("base_url", base_url)
+            api_mode = provider_settings.get("api_mode", api_mode)
+        else:
+            api_key = os.getenv("OPENCODE_ZEN_API_KEY", "")
+            if not base_url:
+                base_url = "https://opencode.ai/zen/v1/chat/completions"
+                api_mode = "chat_completions"
+
+        from run_agent import AIAgent
+
+        agent = AIAgent(
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            provider=provider_name,
+            api_mode=api_mode,
+            max_iterations=10,
+            quiet_mode=True,
+            platform="fastapi",
+        )
+
+        loop = asyncio.get_event_loop()
+        start_time = time.time()
+        result = await loop.run_in_executor(
+            None,
+            lambda: agent.run_conversation(
+                user_prompt,
+                system_message=system_prompt,
+                conversation_history=[],
+            ),
+        )
+        duration_ms = int((time.time() - start_time) * 1000)
+        raw_response = result.get("final_response", "") or ""
+
+        decisions = []
+        parsed = _extract_json_array(raw_response)
+        if isinstance(parsed, list):
+            decisions = parsed
+        else:
+            decisions = [
+                {
+                    "action": "wait",
+                    "symbol": "ALL",
+                    "reasoning": "Hermes did not return a valid decision array.",
+                }
+            ]
+
+        return {
+            "system_prompt": system_prompt,
+            "user_prompt": user_prompt,
+            "cot_trace": "",
+            "raw_response": raw_response,
+            "decisions": decisions,
+            "ai_request_duration_ms": duration_ms,
+        }
     except Exception as e:
-        logger.error(f"Error executing swap: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"[Trading Decision] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Trading decision failed: {str(e)}")
 
 
-@app.post("/api/trading/reset")
-async def trading_reset(request: Request):
-    """Reset paper trading portfolio."""
+def _extract_json_array(raw: str):
+    raw = raw.strip()
+    if not raw:
+        return None
+
+    # Attempt to extract the first JSON array from the model output.
+    array_match = re.search(r"(\[\s*\{.*?\}\s*\])", raw, re.S)
+    if array_match:
+        candidate = array_match.group(1)
+        try:
+            return json.loads(candidate)
+        except Exception:
+            pass
+
+    # Fallback: attempt to parse the whole response as JSON.
     try:
-        result = reset_paper_trading()
-        return result
-    except Exception as e:
-        logger.error(f"Error resetting trading: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return json.loads(raw)
+    except Exception:
+        return None
 
 
 # ============================================================================

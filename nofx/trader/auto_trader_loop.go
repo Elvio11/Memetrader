@@ -9,6 +9,8 @@ import (
 	"nofx/wallet"
 	"strings"
 	"time"
+	"net/http"
+	"bytes"
 )
 
 // runCycle runs one trading cycle (using AI full decision-making)
@@ -93,9 +95,19 @@ func (at *AutoTrader) runCycle() error {
 	logger.Infof("📊 Account equity: %.2f USDT | Available: %.2f USDT | Positions: %d",
 		ctx.Account.TotalEquity, ctx.Account.AvailableBalance, ctx.Account.PositionCount)
 
-	// 5. Use strategy engine to call AI for decision
-	logger.Infof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
-	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
+	// 5. Get decision from Hermes Agent instead of internal AI
+	logger.Infof("🤖 Requesting decision from Hermes Agent... [HTTP API]")
+	
+	// Call Hermes FastAPI for trading decision
+	hermesDecision, err := at.getDecisionFromHermes(ctx)
+	if err != nil {
+		record.Success = false
+		record.ErrorMessage = fmt.Sprintf("Failed to get decision from Hermes: %v", err)
+		at.saveDecision(record)
+		return fmt.Errorf("failed to get decision from Hermes: %w", err)
+	}
+	
+	aiDecision := hermesDecision // Use Hermes decision as AI decision
 
 	if aiDecision != nil && aiDecision.AIRequestDurationMs > 0 {
 		record.AIRequestDurationMs = aiDecision.AIRequestDurationMs
@@ -284,6 +296,110 @@ func (at *AutoTrader) runCycle() error {
 	}
 
 	return nil
+}
+
+// getDecisionFromHermes calls Hermes FastAPI to get trading decisions
+func (at *AutoTrader) getDecisionFromHermes(ctx *kernel.Context) (*kernel.FullDecision, error) {
+	requestData := map[string]interface{}{
+		"context": map[string]interface{}{
+			"account":         ctx.Account,
+			"candidate_coins": ctx.CandidateCoins,
+			"market_data":     ctx.MarketData,
+		},
+		"strategy": "meme_trading",
+		"exchange": at.exchange,
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	hermesURL := "http://localhost:8643/api/trading/decision"
+	resp, err := http.Post(hermesURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Hermes: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Hermes returned status %d", resp.StatusCode)
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	fullDecision := &kernel.FullDecision{
+		Decisions: []kernel.Decision{},
+	}
+
+	if systemPrompt, ok := response["system_prompt"].(string); ok {
+		fullDecision.SystemPrompt = systemPrompt
+	}
+	if userPrompt, ok := response["user_prompt"].(string); ok {
+		fullDecision.UserPrompt = userPrompt
+	}
+	if cotTrace, ok := response["cot_trace"].(string); ok {
+		fullDecision.CoTTrace = cotTrace
+	}
+	if rawResponse, ok := response["raw_response"].(string); ok {
+		fullDecision.RawResponse = rawResponse
+	}
+	if duration, ok := response["ai_request_duration_ms"].(float64); ok {
+		fullDecision.AIRequestDurationMs = int64(duration)
+	}
+
+	if decisions, ok := response["decisions"].([]interface{}); ok {
+		for _, d := range decisions {
+			decisionMap, ok := d.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			decision := kernel.Decision{
+				Action: decisionMap["action"].(string),
+				Symbol: decisionMap["symbol"].(string),
+				Reasoning: func() string {
+					if reasoning, ok := decisionMap["reasoning"].(string); ok {
+						return reasoning
+					}
+					return ""
+				}(),
+			}
+
+			if leverage, ok := decisionMap["leverage"].(float64); ok {
+				decision.Leverage = int(leverage)
+			}
+			if stopLoss, ok := decisionMap["stop_loss"].(float64); ok {
+				decision.StopLoss = stopLoss
+			}
+			if takeProfit, ok := decisionMap["take_profit"].(float64); ok {
+				decision.TakeProfit = takeProfit
+			}
+			if confidence, ok := decisionMap["confidence"].(float64); ok {
+				decision.Confidence = int(confidence)
+			}
+			if positionSizeUSD, ok := decisionMap["position_size_usd"].(float64); ok {
+				decision.PositionSizeUSD = positionSizeUSD
+			}
+			if qty, ok := decisionMap["quantity"].(float64); ok {
+				decision.Quantity = qty
+			}
+			if price, ok := decisionMap["price"].(float64); ok {
+				decision.Price = price
+			}
+			if orderID, ok := decisionMap["order_id"].(string); ok {
+				decision.OrderID = orderID
+			}
+
+			fullDecision.Decisions = append(fullDecision.Decisions, decision)
+		}
+	}
+
+	logger.Infof("✓ Received %d decisions from Hermes", len(fullDecision.Decisions))
+	return fullDecision, nil
 }
 
 // buildTradingContext builds trading context

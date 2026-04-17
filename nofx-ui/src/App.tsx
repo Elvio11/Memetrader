@@ -16,6 +16,7 @@ import { StrategyStudioPage } from './pages/StrategyStudioPage'
 import { StrategyMarketPage } from './pages/StrategyMarketPage'
 import { DataPage } from './pages/DataPage'
 import { BeginnerOnboardingPage } from './pages/BeginnerOnboardingPage'
+import HermesPage from './pages/HermesPage'
 import { LoginRequiredOverlay } from './components/auth/LoginRequiredOverlay'
 import HeaderBar from './components/common/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -43,6 +44,7 @@ type Page =
   | 'strategy'
   | 'strategy-market'
   | 'data'
+  | 'hermes'
   | 'faq'
   | 'login'
   | 'register'
@@ -65,6 +67,7 @@ function App() {
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
     if (path === '/data' || hash === 'data') return 'data'
+    if (path === '/hermes' || hash === 'hermes') return 'hermes'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -85,6 +88,7 @@ function App() {
       'competition': '/competition',
       'strategy-market': '/strategy-market',
       'data': '/data',
+      'hermes': '/hermes',
       'traders': '/traders',
       'trader': '/dashboard',
       'strategy': '/strategy',
@@ -342,6 +346,8 @@ function App() {
       setCurrentPage('competition')
     } else if (route === '/traders') {
       setCurrentPage('traders')
+    } else if (route === '/hermes') {
+      setCurrentPage('hermes')
     } else if (route === '/dashboard') {
       setCurrentPage('trader')
     }
@@ -466,6 +472,34 @@ function App() {
         />
         <main className="pt-16">
           <DataPage />
+        </main>
+        <LoginRequiredOverlay
+          isOpen={loginOverlayOpen}
+          onClose={() => setLoginOverlayOpen(false)}
+          featureName={loginOverlayFeature}
+        />
+      </div>
+    )
+  }
+  // Hermes AI page
+  if (route === '/hermes') {
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: '#0B0E11', color: '#EAECEF' }}
+      >
+        <HeaderBar
+          isLoggedIn={!!user}
+          currentPage="hermes"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onLoginRequired={handleLoginRequired}
+          onPageChange={navigateToPage}
+        />
+        <main className="pt-16">
+          <HermesPage />
         </main>
         <LoginRequiredOverlay
           isOpen={loginOverlayOpen}
