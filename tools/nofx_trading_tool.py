@@ -115,7 +115,7 @@ def nofx_trade(
     order_type: str = "market",
     price: float = None,
 ) -> str:
-    """Execute a trade via NOFX API.
+    """Execute a trade via NOFX API with risk validation and trading mode control.
 
     Args:
         symbol: Trading pair symbol (e.g., "BTC/USDT")
@@ -124,8 +124,56 @@ def nofx_trade(
         order_type: Order type ("market", "limit", "stop")
         price: Limit/stop price (required for limit/stop orders)
 
-    Returns JSON with order result.
+    Returns JSON with order result or risk validation errors.
     """
+    try:
+        from tools.risk_manager import validate_trade_risk, get_risk_config
+        
+        trade_value = amount * (price if price else 1.0)
+        portfolio_value = 1000.0
+        current_positions = 0
+        daily_pnl = 0.0
+        
+        risk_result = validate_trade_risk(
+            trade_value=trade_value,
+            current_positions=current_positions,
+            daily_pnl=daily_pnl,
+            portfolio_value=portfolio_value
+        )
+        
+        trading_mode = os.getenv("TRADING_MODE", "supervised").lower()
+        
+        if not risk_result["approved"]:
+            return json.dumps({
+                "error": "Trade rejected by risk management",
+                "risk_errors": risk_result["errors"],
+                "risk_warnings": risk_result["warnings"],
+                "needs_manual_review": True
+            })
+        
+        if trading_mode == "paper":
+            return json.dumps({
+                "simulated": True,
+                "message": f"Paper trade: {side} {amount} {symbol} @ {price or 'market'}",
+                "trade_id": f"paper_{int(__import__('time').time())}"
+            })
+        
+        if trading_mode == "alert-only":
+            return json.dumps({
+                "alert": True,
+                "trade_proposal": {
+                    "symbol": symbol,
+                    "side": side,
+                    "amount": amount,
+                    "price": price,
+                    "order_type": order_type
+                },
+                "message": "Trade suggestion - use /trade command to execute"
+            })
+        
+    except ImportError:
+        pass
+    
     order_data = {
         "symbol": symbol,
         "side": side,

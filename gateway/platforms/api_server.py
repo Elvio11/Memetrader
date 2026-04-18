@@ -46,14 +46,28 @@ from hermes_cli.models import curated_models_for_provider, list_available_provid
 from hermes_state import SessionDB
 from tools.memory_tool import MemoryStore
 from tools.skills_tool import skill_view, skills_categories, skills_list
-
-# Import trading tools for API handlers
-from tools.trading.paper_engine import get_paper_engine, reset_paper_trading
 from tools.crypto.price_oracle import (
     get_token_price,
     get_trending_meme_tokens,
     get_prices_batch,
 )
+
+# Inspector endpoint data storage (in-memory for session-based tool tracking)
+_inspector_state = {
+    "toolCalls": [],
+    "decisions": [],
+    "errors": []
+}
+
+def _get_inspector_state() -> dict:
+    """Get current inspector state for API endpoint"""
+    return _inspector_state.copy()
+
+def _clear_inspector_state():
+    """Clear inspector state (e.g., on new session)"""
+    global _inspector_state
+    _inspector_state = {"toolCalls": [], "decisions": [], "errors": []}
+
 
 logger = logging.getLogger(__name__)
 
@@ -1559,162 +1573,20 @@ class APIServerAdapter(BasePlatformAdapter):
             {"provider": provider, "models": models, "providers": providers}
         )
 
-    # =============================================================================
-    # Trading API Handlers
-    # =============================================================================
+    async def _handle_inspector_state(self, request: "web.Request") -> "web.Response":
+        """GET /api/inspector/state — get tool calls, decisions, errors from current session."""
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        return web.json_response(_get_inspector_state())
 
-    async def _handle_trading_portfolio(self, request: "web.Request") -> "web.Response":
-        """GET /api/trading/portfolio — Get paper trading portfolio."""
-        try:
-            engine = get_paper_engine()
-
-            # Get prices for valuation
-            tokens = []
-            for chain, wallet in engine.portfolio.wallets.items():
-                for token in wallet.current_balance.keys():
-                    tokens.append({"chain": chain, "token": token})
-
-            prices = get_prices_batch(tokens)
-            engine.get_portfolio_value(prices)
-
-            stats = engine.get_stats()
-            portfolio = engine.portfolio.to_dict()
-
-            return web.json_response(
-                {
-                    "stats": stats,
-                    "wallets": portfolio["wallets"],
-                    "positions": portfolio["positions"],
-                    "recent_trades": portfolio["trades"][-10:]
-                    if portfolio["trades"]
-                    else [],
-                }
-            )
-        except Exception as e:
-            logger.error(f"Error getting portfolio: {e}")
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_trading_stats(self, request: "web.Request") -> "web.Response":
-        """GET /api/trading/stats — Get paper trading statistics."""
-        try:
-            engine = get_paper_engine()
-
-            tokens = []
-            for chain, wallet in engine.portfolio.wallets.items():
-                for token in wallet.current_balance.keys():
-                    tokens.append({"chain": chain, "token": token})
-
-            prices = get_prices_batch(tokens)
-            engine.get_portfolio_value(prices)
-
-            stats = engine.get_stats()
-            return web.json_response(stats)
-        except Exception as e:
-            logger.error(f"Error getting stats: {e}")
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_trading_balance(self, request: "web.Request") -> "web.Response":
-        """GET /api/trading/balance — Get paper wallet balance."""
-        try:
-            chain = request.query.get("chain", "ethereum")
-            token = request.query.get("token")
-
-            engine = get_paper_engine()
-            balance = engine.get_balance(chain, token)
-
-            return web.json_response(balance)
-        except Exception as e:
-            logger.error(f"Error getting balance: {e}")
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_trading_prices(self, request: "web.Request") -> "web.Response":
-        """GET /api/trading/prices — Get token prices."""
-        try:
-            tokens_param = request.query.get("tokens", "")
-            chain = request.query.get("chain", "ethereum")
-
-            tokens = []
-            if tokens_param:
-                for token in tokens_param.split(","):
-                    tokens.append({"chain": chain, "token": token.strip()})
-
-            prices = get_prices_batch(tokens)
-            return web.json_response({"prices": prices})
-        except Exception as e:
-            logger.error(f"Error getting prices: {e}")
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_trading_trending(self, request: "web.Request") -> "web.Response":
-        """GET /api/trading/trending — Get trending meme tokens."""
-        try:
-            tokens = get_trending_meme_tokens()
-            return web.json_response({"trending": tokens})
-        except Exception as e:
-            logger.error(f"Error getting trending: {e}")
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_trading_swap(self, request: "web.Request") -> "web.Response":
-        """POST /api/trading/swap — Execute a paper money swap."""
-        try:
-            body = await request.json()
-            chain = body.get("chain", "ethereum")
-            from_token = body.get("from_token")
-            to_token = body.get("to_token")
-            amount = body.get("amount")
-
-            if not all([from_token, to_token, amount]):
-                return web.json_response(
-                    {
-                        "error": "Missing required fields: chain, from_token, to_token, amount"
-                    },
-                    status=400,
-                )
-
-            # Get price and execute
-            price = get_token_price(chain, from_token)
-            if not price:
-                return web.json_response(
-                    {
-                        "success": False,
-                        "error": f"Could not get price for {from_token}",
-                    },
-                    status=400,
-                )
-
-            engine = get_paper_engine()
-            amount_out = amount * price
-
-            to_price = get_token_price(chain, to_token)
-            if to_price and to_price > 0:
-                amount_out = (amount * price) / to_price
-
-            result = engine.execute_trade(
-                chain=chain,
-                pair=f"{from_token}/{to_token}",
-                side="buy",
-                amount_in=amount,
-                token_in=from_token,
-                amount_out=amount_out,
-                token_out=to_token,
-                price=price,
-                price_usd=price * amount,
-                fee=0.001 * amount,
-                fee_usd=0.001 * amount * price,
-            )
-
-            return web.json_response(result)
-        except Exception as e:
-            logger.error(f"Error executing swap: {e}")
-            return web.json_response({"error": str(e)}, status=500)
-
-    async def _handle_trading_reset(self, request: "web.Request") -> "web.Response":
-        """POST /api/trading/reset — Reset paper trading portfolio."""
-        try:
-            result = reset_paper_trading()
-            return web.json_response(result)
-        except Exception as e:
-            logger.error(f"Error resetting trading: {e}")
-            return web.json_response({"error": str(e)}, status=500)
+    async def _handle_inspector_clear(self, request: "web.Request") -> "web.Response":
+        """POST /api/inspector/clear — clear inspector state."""
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        _clear_inspector_state()
+        return web.json_response({"success": True, "message": "Inspector state cleared"})
 
     async def _handle_chat_completions(self, request: "web.Request") -> "web.Response":
         """POST /v1/chat/completions — OpenAI Chat Completions format."""
@@ -3059,21 +2931,8 @@ class APIServerAdapter(BasePlatformAdapter):
             self._app.router.add_get(
                 "/api/available-models", self._handle_available_models
             )
-
-            # Trading API endpoints
-            self._app.router.add_get(
-                "/api/trading/portfolio", self._handle_trading_portfolio
-            )
-            self._app.router.add_get("/api/trading/stats", self._handle_trading_stats)
-            self._app.router.add_get(
-                "/api/trading/balance", self._handle_trading_balance
-            )
-            self._app.router.add_get("/api/trading/prices", self._handle_trading_prices)
-            self._app.router.add_get(
-                "/api/trading/trending", self._handle_trading_trending
-            )
-            self._app.router.add_post("/api/trading/swap", self._handle_trading_swap)
-            self._app.router.add_post("/api/trading/reset", self._handle_trading_reset)
+            self._app.router.add_get("/api/inspector/state", self._handle_inspector_state)
+            self._app.router.add_post("/api/inspector/clear", self._handle_inspector_clear)
 
             # Start background sweep to clean up orphaned (unconsumed) run streams
             sweep_task = asyncio.create_task(self._sweep_orphaned_runs())
