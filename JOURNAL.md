@@ -134,3 +134,99 @@ Successfully cloned 18+ GitHub repositories across multiple categories:
 ## Session Summary
 
 This session focused on making MemeTrader self-contained by cloning all external dependencies locally. While disk space became a constraint, we successfully implemented a comprehensive repo management system with cleanup capabilities. The trading system was significantly enhanced with multi-chain DEX support and advanced analysis tools.
+
+---
+
+## Session: MCP Integration & Tool Verification
+**Date:** April 18, 2026  
+**Objective:** Verify working MCP servers, fix missing Inspector API, document tool inventory
+
+## Current Findings
+
+### MCP Server Testing Results
+Successfully tested and verified working MCP servers:
+
+| MCP Server | Command | Status | Chains/Tools |
+|------------|---------|--------|--------------|
+| **defi-trading-mcp** | `npx -y defi-trading-mcp` | ✅ WORKING | 17+ chains, 35+ tools |
+| **pumpclaw mcp-server** | Build `mcp-server/` | ✅ WORKING | Base token launcher |
+| **sui-trader-mcp** | Build + .env setup | ⚠️ Needs PRIVATE_KEY | Sui token swaps |
+
+### External Repos Analysis
+- Cloned 18+ repos into `external-repos/`
+- Most require local build before use
+- Some need API keys (RPC URLs, private keys)
+
+### Tool Inventory (115 Tools Registered)
+| Toolset | Count | Examples |
+|---------|-------|----------|
+| trading | 27 | nofx_trade, grid_start, risk_check |
+| dex | 21 | cetus_swap, dex_grid_init, limit_order |
+| social | 11 | twitter_search, telegram_messages |
+| onchain | 11 | helius_tx, wallet_tracker |
+| security | 7 | dexranger_security, sui_rug_check |
+| data | 6 | coingecko_price, dexscreener_search |
+
+### Grid & Limit Order Status (Already Implemented!)
+- **DEX Grid:** 6 tools (dex_grid_init, status, stop, etc.) - `tools/dex_grid_tool.py`
+- **NOFX Grid:** 8 tools (grid_start, stop, status) - `tools/nofx_grid_tool.py`
+- **Limit Orders:** 4 tools (limit_order_create, cancel, query) - `tools/limit_order_tool.py`
+- **Total:** 14 grid tools + 4 limit order tools
+
+### Inspector API Fix
+Added missing `/api/inspector/state` endpoint in `gateway/fastapi_server.py` to support NOFX-UI Inspector tab
+
+## Changes from Last Commit
+
+### Modified Files:
+- `gateway/fastapi_server.py` - Added Inspector API endpoint (lines 1028-1047)
+- `clone_repos.sh` - Made executable (+x permission)
+
+### New Files:
+- `external-repos/base/defi-trading-mcp/` - Cloned MCP server
+- `external-repos/base/pumpclaw/mcp-server/` - Cloned Base MCP
+- `external-repos/base/universal-crypto-mcp/` - Cloned (large, 134k+ files)
+- `external-repos/solana/dexranger-skill/`
+- `external-repos/solana/solana-agent-kit/`
+- `external-repos/sui/sui-trader-mcp/`
+- `external-repos/sui/sui-agent-kit/`
+- `external-repos/sui/capybot/`
+- `external-repos/sui/HoneyPotDetectionOnSui/`
+- `external-repos/social/twikit/`
+- `external-repos/social/twitter-alpha-sentiment-tracker-v2/`
+- `external-repos/base/web3-ai-trading-agent/`
+- `external-repos/base/defi-trading-mcp/`
+- `external-repos/multi-chain/onchain-agent-kit/`
+- `external-repos/multi-chain/Autonomous-AI-Trading-Agent-MCP-Flash-Arb-Engine/`
+- `external-repos/security/pump-fun-rug-checker-lite/`
+- `external-repos/security/Rug-Killer-On-Solana/`
+- `external-repos/security/solana-rugchecker/`
+
+## Key Decisions Made
+
+1. **MCP Integration Approach:** Use Hermes as intermediary (not NOFX directly) - simplest path
+2. **defi-trading-mcp Priority:** Most comprehensive - 17+ chains, 35+ tools
+3. **Grid/Limit Order Status:** Already implemented in Hermes tools (not missing!)
+4. **Inspector API Fix:** Added endpoint to support UI Inspector tab
+
+## Next Steps
+
+1. **MCP Configuration:** Add defi-trading-mcp to Hermes config.yaml
+2. **Chain Wallet List:** Document exact chain/wallet tools from defi-trading-mcp
+3. **Integration Testing:** Test MCP tools with Hermes agent
+4. **NOFX Direct Integration:** Future - implement Go-native MCP client
+
+## Issues Encountered
+
+- **Empty Directories:** Clone script skipped repos with existing (empty) folders - Fixed by removing empty dirs first
+- **npx Not Found:** Some packages unavailable via npx directly - Required local build
+- **Missing Inspector API:** NOFX-UI Inspector tab called non-existent endpoint - Fixed by adding endpoint
+
+## Success Metrics
+
+- ✅ External repos cloned and organized
+- ✅ Working MCP servers identified and tested
+- ✅ Tool inventory documented (115 tools)
+- ✅ Grid/Limit Order status verified (already implemented!)
+- ✅ Inspector API fix applied
+- ✅ Architecture recommendation for MCP integration

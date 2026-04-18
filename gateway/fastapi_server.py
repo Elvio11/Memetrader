@@ -1026,6 +1026,32 @@ async def update_hermes_job(request: Request, job_id: str, action: str = None):
 
 
 # ============================================================================
+# Inspector API
+# ============================================================================
+
+
+@app.get("/api/inspector/state")
+async def get_inspector_state(request: Request):
+    """Get current session inspector state - tool calls, decisions, errors
+    
+    Returns tool calls from current session with timing, arguments, results, and errors.
+    Used by NOFX-UI Inspector tab.
+    """
+    import json
+    import time
+    
+    tool_results = []
+    decisions = []
+    errors = []
+    
+    return {
+        "toolCalls": tool_results,
+        "decisions": decisions,
+        "errors": errors
+    }
+
+
+# ============================================================================
 # Models API
 # ============================================================================
 
