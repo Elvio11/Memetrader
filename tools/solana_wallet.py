@@ -1,7 +1,16 @@
 import json
+import os
 import base58
+import requests
 from solders.keypair import Keypair
+from solders.pubkey import Pubkey
+from solders.transaction import VersionedTransaction
+from solders.message import MessageV0
+from solders.system_program import TransferParams, transfer
+from solders.hash import Hash
 from tools.registry import registry
+
+SOLANA_RPC = os.getenv("SOLANA_RPC_URL", "https://api.devnet.solana.com")
 
 
 def check_requirements() -> bool:
@@ -12,6 +21,90 @@ def check_requirements() -> bool:
         return True
     except:
         return False
+
+
+def get_latest_blockhash() -> tuple:
+    """Get latest blockhash for transaction signing"""
+    try:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getLatestBlockhash",
+            "params": []
+        }
+        response = requests.post(SOLANA_RPC, json=payload, timeout=10)
+        data = response.json()
+        if "result" in data:
+            blockhash = data["result"]["value"]["blockhash"]
+            return Hash.from_string(blockhash), None
+        return None, "Failed to get blockhash"
+    except Exception as e:
+        return None, str(e)
+
+
+def transfer_sol(private_key_b58: str, to_address: str, amount_lamports: int) -> str:
+    """Transfer SOL from wallet to another address
+    
+    Args:
+        private_key_b58: Base58 encoded private key
+        to_address: Destination wallet address
+        amount_lamports: Amount in lamports (1 SOL = 1e9 lamports)
+    
+    Returns:
+        JSON string with transaction signature or error
+    """
+    try:
+        private_key_bytes = base58.b58decode(private_key_b58)
+        keypair = Keypair.from_bytes(private_key_bytes)
+        
+        to_pubkey = Pubkey.from_string(to_address)
+        
+        transfer_ix = transfer(TransferParams(
+            from_pubkey=keypair.pubkey(),
+            to_pubkey=to_pubkey,
+            lamports=amount_lamports
+        ))
+        
+        blockhash, err = get_latest_blockhash()
+        if err:
+            return json.dumps({"error": f"Blockhash error: {err}"})
+        
+        msg = MessageV0.try_compile(
+            payer=keypair.pubkey(),
+            instructions=[transfer_ix],
+            address_lookup_table_accounts=[],
+            recent_blockhash=blockhash
+        )
+        
+        tx = VersionedTransaction(msg, [keypair])
+        
+        send_payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sendTransaction",
+            "params": [
+                base58.b58encode(bytes(tx)).decode(),
+                {"encoding": "base64", "maxSupportedTransactionVersion": 0}
+            ]
+        }
+        
+        send_response = requests.post(SOLANA_RPC, json=send_payload, timeout=30)
+        send_data = send_response.json()
+        
+        if "result" in send_data:
+            return json.dumps({
+                "success": True,
+                "signature": send_data["result"],
+                "from": str(keypair.pubkey()),
+                "to": to_address,
+                "amount_lamports": amount_lamports,
+                "amount_sol": amount_lamports / 1e9,
+                "explorer_url": f"https://solscan.io/tx/{send_data['result']}?cluster=devnet"
+            })
+        return json.dumps({"error": send_data.get("error", "Unknown error")})
+        
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 def load_wallet_from_private_key(private_key_b58: str) -> str:
@@ -224,6 +317,39 @@ registry.register(
     handler=lambda args, **kw: get_token_balance(
         args.get("wallet_address", ""),
         args.get("token_mint")
+    ),
+    check_fn=check_requirements
+)
+
+registry.register(
+    name="solana_transfer",
+    toolset="dex",
+    schema={
+        "name": "solana_transfer",
+        "description": "Transfer SOL from wallet to another Solana address. Use for sending SOL or testing transactions.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "private_key": {
+                    "type": "string",
+                    "description": "Base58 encoded private key of sender"
+                },
+                "to_address": {
+                    "type": "string",
+                    "description": "Destination wallet address"
+                },
+                "amount_lamports": {
+                    "type": "integer",
+                    "description": "Amount in lamports (1 SOL = 1,000,000,000 lamports)"
+                }
+            },
+            "required": ["private_key", "to_address", "amount_lamports"]
+        }
+    },
+    handler=lambda args, **kw: transfer_sol(
+        args.get("private_key", ""),
+        args.get("to_address", ""),
+        args.get("amount_lamports", 0)
     ),
     check_fn=check_requirements
 )

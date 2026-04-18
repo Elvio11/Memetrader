@@ -52,6 +52,23 @@ from tools.crypto.price_oracle import (
     get_prices_batch,
 )
 
+# Inspector endpoint data storage (in-memory for session-based tool tracking)
+_inspector_state = {
+    "toolCalls": [],
+    "decisions": [],
+    "errors": []
+}
+
+def _get_inspector_state() -> dict:
+    """Get current inspector state for API endpoint"""
+    return _inspector_state.copy()
+
+def _clear_inspector_state():
+    """Clear inspector state (e.g., on new session)"""
+    global _inspector_state
+    _inspector_state = {"toolCalls": [], "decisions": [], "errors": []}
+
+
 logger = logging.getLogger(__name__)
 
 # Default settings
@@ -1556,6 +1573,21 @@ class APIServerAdapter(BasePlatformAdapter):
             {"provider": provider, "models": models, "providers": providers}
         )
 
+    async def _handle_inspector_state(self, request: "web.Request") -> "web.Response":
+        """GET /api/inspector/state — get tool calls, decisions, errors from current session."""
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        return web.json_response(_get_inspector_state())
+
+    async def _handle_inspector_clear(self, request: "web.Request") -> "web.Response":
+        """POST /api/inspector/clear — clear inspector state."""
+        auth_err = self._check_auth(request)
+        if auth_err:
+            return auth_err
+        _clear_inspector_state()
+        return web.json_response({"success": True, "message": "Inspector state cleared"})
+
     async def _handle_chat_completions(self, request: "web.Request") -> "web.Response":
         """POST /v1/chat/completions — OpenAI Chat Completions format."""
         auth_err = self._check_auth(request)
@@ -2899,6 +2931,8 @@ class APIServerAdapter(BasePlatformAdapter):
             self._app.router.add_get(
                 "/api/available-models", self._handle_available_models
             )
+            self._app.router.add_get("/api/inspector/state", self._handle_inspector_state)
+            self._app.router.add_post("/api/inspector/clear", self._handle_inspector_clear)
 
             # Start background sweep to clean up orphaned (unconsumed) run streams
             sweep_task = asyncio.create_task(self._sweep_orphaned_runs())

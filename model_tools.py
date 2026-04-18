@@ -176,6 +176,16 @@ def _discover_tools():
         "tools.reddit_sentiment_tool",
         "tools.sui_rpc_tool",
         "tools.wallet_tracker",
+        "tools.dexlab_tool",
+        "tools.bitquery_tool",
+        "tools.aerodrome_tool",
+        "tools.jupiter_limit_tool",
+        "tools.raydium_tool",
+        "tools.limit_order_tool",
+        "tools.nofx_grid_tool",
+        "tools.dex_grid_tool",
+        "tools.risk_manager",
+        "tools.risk_tools",
     ]
     import importlib
 
