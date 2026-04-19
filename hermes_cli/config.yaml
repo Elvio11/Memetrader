@@ -1,0 +1,32 @@
+# Hermes CLI Configuration with MCP Servers
+
+mcp_servers:
+  # SUI MCP Server for Sui blockchain and Cetus DEX
+  sui_mcp:
+    command: bash
+    args:
+      - -c
+      - cd /workspaces/Memetrader/mcp-wrappers/sui/sui-mcp-server && npx tsx src/index.ts
+    env:
+      NODE_ENV: "development"
+
+  # Analytics Hub MCP Server for market data
+  analytics_hub:
+    command: bash
+    args:
+      - -c
+      - cd /workspaces/Memetrader/mcp-servers/analytics-hub && npx tsx src/index.ts
+    env:
+      NODE_ENV: "development"
+
+# Model settings
+model: "openrouter/anthropic/claude-3-haiku-20240307"
+
+# Provider settings
+providers:
+  openrouter:
+    api_key: "${OPENROUTER_API_KEY}"
+
+# Toolsets
+toolsets:
+  - hermes-cli
