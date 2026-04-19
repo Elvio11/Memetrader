@@ -52,36 +52,17 @@ def create_cross_dex_limit_order(
             return jupiter_create(input_mint, output_mint, amount, out_amount, user_public_key, private_key)
         
         elif dex.lower() == "raydium":
-            from tools.raydium_tool import get_swap_quote as raydium_quote
+            from tools.raydium_limit_tool import create_raydium_clmm_limit_order
             
-            quote = json.loads(raydium_quote(input_mint, output_mint, amount))
-            
-            if "error" in quote:
-                return json.dumps({"error": f"Raydium quote failed: {quote['error']}"})
-            
-            out_amount = int(quote.get("output_amount", 0))
-            target_amount = int(amount * limit_price)
-            
-            if out_amount >= target_amount:
-                return json.dumps({
-                    "dex": "raydium",
-                    "status": "ready_to_execute",
-                    "current_price": out_amount / amount,
-                    "limit_price": limit_price,
-                    "input_amount": amount,
-                    "expected_output": out_amount,
-                    "note": "Price above limit - would execute as market order"
-                })
-            else:
-                return json.dumps({
-                    "dex": "raydium",
-                    "status": "price_below_limit",
-                    "current_price": out_amount / amount,
-                    "limit_price": limit_price,
-                    "input_amount": amount,
-                    "expected_output": out_amount,
-                    "note": f"Current price {out_amount/amount:.8f} below limit {limit_price:.8f} - order not triggered"
-                })
+            return create_raydium_clmm_limit_order(
+                input_mint=input_mint,
+                output_mint=output_mint,
+                amount=amount,
+                limit_price=limit_price,
+                private_key=private_key,
+                user_public_key=user_public_key,
+                version="devnet"  # Default to devnet, could be made configurable
+            )
         
         elif dex.lower() == "cetus":
             from tools.cetus_tool import create_limit_order as cetus_limit
@@ -89,23 +70,17 @@ def create_cross_dex_limit_order(
             return cetus_limit(input_mint, output_mint, amount, limit_price)
         
         elif dex.lower() == "aerodrome":
-            from tools.aerodrome_tool import get_swap_quote as aero_quote
+            from tools.aerodrome_limit_tool import create_aerodrome_clmm_limit_order
             
-            quote = json.loads(aero_quote(input_mint, output_mint, amount))
-            
-            if "error" in quote:
-                return json.dumps({"error": f"Aerodrome quote failed: {quote['error']}"})
-            
-            return json.dumps({
-                "dex": "aerodrome",
-                "status": "pending",
-                "input_mint": input_mint,
-                "output_mint": output_mint,
-                "amount": amount,
-                "limit_price": limit_price,
-                "quote": quote,
-                "note": "Aerodrome limit orders require SDK integration"
-            })
+            return create_aerodrome_clmm_limit_order(
+                input_mint=input_mint,
+                output_mint=output_mint,
+                amount=amount,
+                limit_price=limit_price,
+                private_key=private_key,
+                user_public_key=user_public_key,
+                version="mainnet"  # Default to mainnet for Aerodrome
+            )
         
         else:
             return json.dumps({"error": f"Unknown DEX: {dex}. Supported: jupiter, raydium, cetus, aerodrome"})
@@ -131,6 +106,24 @@ def query_limit_orders(dex: str, wallet: str) -> str:
             from tools.jupiter_limit_tool import query_open_orders
             results["jupiter"] = json.loads(query_open_orders(wallet))
         
+        if dex.lower() in ("raydium", "all"):
+            from tools.raydium_limit_tool import query_raydium_limit_orders
+            results["raydium"] = json.loads(query_raydium_limit_orders(wallet))
+            
+        if dex.lower() in ("aerodrome", "all"):
+            from tools.aerodrome_limit_tool import query_aerodrome_limit_orders
+            results["aerodrome"] = json.loads(query_aerodrome_limit_orders(wallet))
+            
+        # Cetus limit order query - Cetus doesn't have a separate query function, 
+        # so we'll note that limit orders are handled through position tracking
+        if dex.lower() in ("cetus", "all") and "cetus" not in results:
+            results["cetus"] = json.dumps({
+                "dex": "cetus",
+                "orders": [],
+                "count": 0,
+                "note": "Cetus uses concentrated liquidity pools for limit-order-like functionality. Use position tracking for active orders."
+            })
+        
         return json.dumps(results)
     
     except Exception as e:
@@ -154,9 +147,23 @@ def cancel_limit_order(dex: str, order_public_key: str, user_public_key: str, pr
             from tools.jupiter_limit_tool import cancel_limit_order
             return cancel_limit_order(order_public_key, user_public_key, private_key)
         
+        elif dex.lower() == "raydium":
+            from tools.raydium_limit_tool import cancel_raydium_limit_order
+            return cancel_raydium_limit_order(
+                order_id=order_public_key,
+                wallet=user_public_key,
+                private_key=private_key
+            )
+        elif dex.lower() == "aerodrome":
+            from tools.aerodrome_limit_tool import cancel_aerodrome_limit_order
+            return cancel_aerodrome_limit_order(
+                order_id=order_public_key,
+                wallet=user_public_key,
+                private_key=private_key
+            )
         else:
             return json.dumps({
-                "error": f"Cancel not supported for {dex}. Only Jupiter cancel is available."
+                "error": f"Cancel not supported for {dex}. Supported: jupiter, raydium, aerodrome"
             })
     
     except Exception as e:
@@ -168,7 +175,7 @@ registry.register(
     toolset="dex",
     schema={
         "name": "limit_order_create",
-        "description": "Create a limit order across multiple DEXs. Currently supports Jupiter (Solana), Raydium (Solana), Cetus (SUI), and Aerodrome (Base). Jupiter is fully functional.",
+        "description": "Create a limit order across multiple DEXs. Supports Jupiter (Solana), Raydium (Solana) using CLMM pools, Cetus (SUI), and Aerodrome (Base) using Slipstream concentrated liquidity pools.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -250,7 +257,7 @@ registry.register(
     toolset="dex",
     schema={
         "name": "limit_order_cancel",
-        "description": "Cancel a limit order. Currently supports Jupiter (Solana).",
+        "description": "Cancel a limit order. Supports Jupiter (Solana), Raydium (Solana), and Aerodrome (Base).",
         "parameters": {
             "type": "object",
             "properties": {
