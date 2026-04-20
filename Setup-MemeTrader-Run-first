@@ -1,0 +1,102 @@
+# Setup-MemeTrader-Run-first
+
+This guide provides step-by-step instructions to set up and run MemeTrader for the first time. MemeTrader integrates Hermes Agent (Python-based AI assistant) with NOFX (Go-based trading system) and a React UI.
+
+## Prerequisites
+- **Python 3.11+**: Required for Hermes Agent.
+- **Go 1.19+**: Required for NOFX backend.
+- **Node.js and npm/yarn**: Required for NOFX UI (if building from source).
+- **Git**: For cloning repositories.
+- **uv**: A fast Python package manager (installed automatically by setup script if needed).
+
+Ensure these are installed on your system before proceeding.
+
+## Step 1: Clone the Repository
+If you haven't already:
+```bash
+git clone https://github.com/Fragfolio-arch/Memetrader.git
+cd Memetrader
+```
+
+## Step 2: Set Up Hermes Agent (Python Dependencies)
+Hermes uses a virtual environment and `uv` for dependency management.
+
+1. Run the setup script:
+   ```bash
+   ./setup-hermes.sh
+   ```
+   - This will:
+     - Install `uv` if not present.
+     - Create a Python 3.11 virtual environment.
+     - Install all Python dependencies from `pyproject.toml`.
+     - Set up the `hermes` CLI command.
+     - Optionally run a setup wizard for configuration.
+
+2. If prompted, complete the setup wizard to configure API keys, profiles, etc.
+
+3. Activate the virtual environment manually if needed (though scripts handle this):
+   ```bash
+   source venv/bin/activate
+   ```
+
+## Step 3: Set Up NOFX (Go Backend and UI)
+NOFX is the trading backend.
+
+1. Navigate to the NOFX directory:
+   ```bash
+   cd nofx
+   ```
+
+2. Install Go dependencies:
+   ```bash
+   go mod tidy
+   ```
+
+3. (Optional) If building the UI from source:
+   - Navigate to the UI directory (if separate).
+   - Install Node.js dependencies: `npm install` or `yarn install`.
+   - Build the UI: `npm run build` or `yarn build`.
+
+4. Return to the root directory:
+   ```bash
+   cd ..
+   ```
+
+## Step 4: Configure Environment Variables
+- Copy the example config if needed: `cp cli-config.yaml.example ~/.hermes/config.yaml`
+- Set up API keys for providers (e.g., Anthropic, OpenAI) in `~/.hermes/.env`.
+- For NOFX, configure trading exchanges in its config files.
+
+## Step 5: Run MemeTrader
+Start all services with the unified startup script:
+```bash
+./start-memetrader.sh
+```
+
+This will:
+- Clean up old processes.
+- Start Hermes FastAPI server (port 8643).
+- Start Hermes Gateway (port 8642).
+- Start NOFX backend (port 8080).
+- Start NOFX UI (port 3000, if applicable).
+
+Monitor logs in `/tmp/` (e.g., `tail -f /tmp/hermes-fastapi.log`).
+
+## Step 6: Access the Services
+- **Hermes CLI**: Run `hermes` in a new terminal (with venv activated).
+- **Hermes Web UI**: Open http://localhost:8643 in your browser.
+- **NOFX UI**: Open http://localhost:3000 in your browser.
+- **NOFX API**: Available at http://localhost:8080.
+
+## Troubleshooting
+- If Python commands fail, ensure venv is activated: `source venv/bin/activate`.
+- Check logs for errors.
+- For NOFX issues, verify Go installation and dependencies.
+- If ports are in use, kill conflicting processes or change ports in configs.
+
+## Next Steps
+- Explore the Hermes CLI for AI-powered trading assistance.
+- Configure trading strategies in NOFX.
+- Refer to `README.md` and `AGENTS.md` for more details.
+
+If you encounter issues, check the project documentation or open an issue on GitHub.

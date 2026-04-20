@@ -137,13 +137,59 @@ fi
 
 echo -e "${CYAN}→${NC} Installing optional submodules..."
 
-# tinker-atropos (RL training backend)
+# tinker-atropos (RL training backend - OPTIONAL)
+echo -e "${CYAN}→${NC} Checking tinker-atropos (optional RL training backend)..."
+
 if [ -d "tinker-atropos" ] && [ -f "tinker-atropos/pyproject.toml" ]; then
-    $UV_CMD pip install -e "./tinker-atropos" && \
-        echo -e "${GREEN}✓${NC} tinker-atropos installed" || \
-        echo -e "${YELLOW}⚠${NC} tinker-atropos install failed (RL tools may not work)"
+    echo -e "${CYAN}→${NC} Installing tinker-atropos from local folder..."
+    
+    # Check if local atropos-main is available
+    if [ -d "atropos-main" ] && [ -f "atropos-main/pyproject.toml" ]; then
+        echo -e "${CYAN}→${NC} Local atropos-main found, installing with atropos support..."
+        if $UV_CMD pip install -e "./tinker-atropos[atropos]" 2>/dev/null; then
+            echo -e "${GREEN}✓${NC} tinker-atropos with atropos support installed"
+        else
+            echo -e "${YELLOW}⚠${NC} tinker-atropos with atropos had issues, installing without..."
+            $UV_CMD pip install -e "./tinker-atropos" 2>/dev/null && \
+                echo -e "${GREEN}✓${NC} tinker-atropos installed (without atropos)"
+        fi
+    else
+        echo -e "${CYAN}→${NC} Installing tinker-atropos without atropos (local atropos-main not found)..."
+        if $UV_CMD pip install -e "./tinker-atropos" 2>/dev/null; then
+            echo -e "${GREEN}✓${NC} tinker-atropos installed successfully"
+        else
+            echo -e "${YELLOW}⚠${NC} tinker-atropos install had issues (RL tools may be limited)"
+        fi
+    fi
 else
-    echo -e "${YELLOW}⚠${NC} tinker-atropos not found (run: git submodule update --init --recursive)"
+    # tinker-atropos not found — offer to clone it
+    echo -e "${YELLOW}⚠${NC} tinker-atropos not found locally"
+    echo "    Tinker is an optional RL training backend. You only need it if doing reinforcement learning."
+    read -p "Clone tinker-atropos now? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${CYAN}→${NC} Cloning tinker-atropos..."
+        # Adjust URL based on your repo structure
+        TINKER_URL="${TINKER_REPO_URL:-https://github.com/Fragfolio-arch/tinker-atropos.git}"
+        if git clone "$TINKER_URL" tinker-atropos 2>/dev/null; then
+            echo -e "${GREEN}✓${NC} tinker-atropos cloned"
+            # After cloning, check for local atropos again
+            if [ -d "atropos-main" ] && [ -f "atropos-main/pyproject.toml" ]; then
+                echo -e "${CYAN}→${NC} Installing with local atropos support..."
+                $UV_CMD pip install -e "./tinker-atropos[atropos]" 2>/dev/null && \
+                    echo -e "${GREEN}✓${NC} tinker-atropos with atropos installed"
+            else
+                $UV_CMD pip install -e "./tinker-atropos" 2>/dev/null && \
+                    echo -e "${GREEN}✓${NC} tinker-atropos installed"
+            fi
+        else
+            echo -e "${YELLOW}⚠${NC} Failed to clone tinker-atropos. Manual setup:"
+            echo "    git clone <repo-url> tinker-atropos"
+            echo "    pip install -e ./tinker-atropos"
+        fi
+    else
+        echo -e "${YELLOW}⚠${NC} Skipping tinker-atropos (RL tools will be unavailable)"
+    fi
 fi
 
 # ============================================================================
