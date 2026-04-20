@@ -33,7 +33,7 @@ echo "    PID: $FASTAPI_PID"
 # 3. Start Hermes Gateway (8642) - Optional
 # ============================================================
 echo "[3/5] Starting Hermes Gateway (port 8642)..."
-nohup .venv/bin/hermes gateway run >/tmp/hermes-gateway.log 2>&1 &
+nohup hermes gateway run >/tmp/hermes-gateway.log 2>&1 &
 GATEWAY_PID=$!
 echo "    PID: $GATEWAY_PID"
 

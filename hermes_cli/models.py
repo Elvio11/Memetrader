@@ -161,6 +161,10 @@ _PROVIDER_MODELS: dict[str, list[str]] = {
         "MiniMax-M2.5",
         "MiniMax-M2.7",
     ],
+    "cerebras": [
+        "llama3.1-8b",
+        "qwen-3-235b-a22b-instruct-2507",
+    ],
     "anthropic": [
         "claude-opus-4-6",
         "claude-sonnet-4-6",
@@ -484,6 +488,7 @@ _PROVIDER_LABELS = {
     "kilocode": "Kilo Code",
     "alibaba": "Alibaba Cloud (DashScope)",
     "huggingface": "Hugging Face",
+    "cerebras": "Cerebras",
     "custom": "Custom endpoint",
 }
 
@@ -768,7 +773,7 @@ def list_available_providers() -> list[dict[str, str]]:
         "gemini", "huggingface",
         "zai", "kimi-coding", "minimax", "minimax-cn", "kilocode", "anthropic", "alibaba",
         "opencode-zen", "opencode-go",
-        "ai-gateway", "deepseek", "custom",
+        "ai-gateway", "deepseek", "cerebras", "custom",
     ]
     # Build reverse alias map
     aliases_for: dict[str, list[str]] = {}
