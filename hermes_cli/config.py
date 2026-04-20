@@ -697,7 +697,15 @@ OPTIONAL_ENV_VARS = {
     "MINIMAX_API_KEY": {
         "description": "MiniMax API key (international)",
         "prompt": "MiniMax API key",
-        "url": "https://www.minimax.io/",
+        "url": "https://www.minimaxi.com/",
+        "password": True,
+        "category": "provider",
+        "advanced": True,
+    },
+    "CEREBRAS_API_KEY": {
+        "description": "Cerebras API key for fast Llama and Qwen inference",
+        "prompt": "Cerebras API key",
+        "url": "https://cerebras.ai/",
         "password": True,
         "category": "provider",
         "advanced": True,
